@@ -40,6 +40,7 @@ from sympy import (
     IndexedBase,
     Matrix,
     permutedims,
+    simplify,
     Symbol,
     symbols,
     tensorcontraction as tc,
@@ -148,6 +149,7 @@ def gen_integral_exprs(
 
         # Replacement expressions, used to form the reduced expressions.
         for i, (lhs, rhs) in enumerate(repls):
+            rhs = simplify(rhs)
             rhs = rhs.evalf()
             # Replace occurences of Ax, Ay, Az, ... with A[0], A[1], A[2], ...
             rhs = functools.reduce(lambda rhs, map_: rhs.xreplace(map_), maps, rhs)
@@ -155,6 +157,7 @@ def gen_integral_exprs(
 
         # Reduced expression, i.e., the final integrals/expressions.
         for i, red in enumerate(reduced):
+            red = simplify(red)
             red = red.evalf()
             reduced[i] = functools.reduce(
                 lambda red, map_: red.xreplace(map_), maps, red
@@ -235,8 +238,8 @@ def run():
     # center_R = get_center("R")
     Xa, Ya, Za = symbols("Xa Ya Za")
 
-    # Orbital exponents a, b, c, d.
-    a, b, c, d = symbols("a b c d", real=True)
+    # Orbital exponents ax, bx, cx, dx.
+    ax, bx, cx, dx = symbols("ax bx cx dx", real=True)
 
     # These maps will be used to convert {Ax, Ay, ...} to array quantities
     # in the generated code. This way an iterable/np.ndarray can be used as
@@ -263,13 +266,13 @@ def run():
 
         # This code can evaluate multiple points at a time
         cart_gto_Ls = gen_integral_exprs(
-            lambda La_tot: CartGTOShell(La_tot, a, Xa, Ya, Za),
+            lambda La_tot: CartGTOShell(La_tot, ax, Xa, Ya, Za),
             (l_max,),
             "cart_gto",
         )
         write_render(
             cart_gto_Ls,
-            (a, Xa, Ya, Za),
+            (ax, Xa, Ya, Za),
             "cart_gto3d",
             cart_gto_doc_func,
             out_dir,
@@ -289,13 +292,13 @@ def run():
             return f"Cartesian 3D ({shell_a}{shell_b}) overlap integral."
 
         ovlp_ints_Ls = gen_integral_exprs(
-            lambda La_tot, Lb_tot: gen_overlap_shell(La_tot, Lb_tot, a, b, A, B),
+            lambda La_tot, Lb_tot: gen_overlap_shell(La_tot, Lb_tot, ax, bx, A, B),
             (l_max, l_max),
             "overlap",
             (A_map, B_map),
         )
         write_render(
-            ovlp_ints_Ls, (a, A, b, B), "ovlp3d", ovlp_doc_func, out_dir, c=True
+            ovlp_ints_Ls, (ax, A, bx, B), "ovlp3d", ovlp_doc_func, out_dir, c=True
         )
         print()
 
@@ -332,8 +335,8 @@ def run():
                 # Le_tot = 1
                 La_tot,
                 Lb_tot,
-                a,
-                b,
+                ax,
+                bx,
                 A,
                 B,
                 1,
@@ -345,7 +348,7 @@ def run():
         )
         write_render(
             dipole_ints_Ls,
-            (a, A, b, B, C),
+            (ax, A, bx, B, C),
             "dipole3d",
             dipole_doc_func,
             out_dir,
@@ -379,7 +382,7 @@ def run():
 
         diag_quadrupole_ints_Ls = gen_integral_exprs(
             lambda La_tot, Lb_tot: gen_diag_quadrupole_shell(
-                La_tot, Lb_tot, a, b, center_A, center_B, center_C
+                La_tot, Lb_tot, ax, bx, center_A, center_B, center_C
             ),
             (l_max, l_max),
             "diag quadrupole moment",
@@ -387,7 +390,7 @@ def run():
         )
         write_render(
             diag_quadrupole_ints_Ls,
-            (a, A, b, B, C),
+            (ax, A, bx, B, C),
             "diag_quadrupole3d",
             diag_quadrupole_doc_func,
             out_dir,
@@ -424,8 +427,8 @@ def run():
                 # Le_tot = 2
                 La_tot,
                 Lb_tot,
-                a,
-                b,
+                ax,
+                bx,
                 center_A,
                 center_B,
                 2,
@@ -438,7 +441,7 @@ def run():
 
         write_render(
             quadrupole_ints_Ls,
-            (a, A, b, B, C),
+            (ax, A, bx, B, C),
             "quadrupole3d",
             quadrupole_doc_func,
             out_dir,
@@ -460,7 +463,7 @@ def run():
 
         kinetic_ints_Ls = gen_integral_exprs(
             lambda La_tot, Lb_tot: gen_kinetic_shell(
-                La_tot, Lb_tot, a, b, center_A, center_B
+                La_tot, Lb_tot, ax, bx, center_A, center_B
             ),
             (l_max, l_max),
             "kinetic",
@@ -468,7 +471,7 @@ def run():
         )
         write_render(
             kinetic_ints_Ls,
-            (a, A, b, B),
+            (ax, A, bx, B),
             "kinetic3d",
             kinetic_doc_func,
             out_dir,
@@ -489,7 +492,7 @@ def run():
 
         coulomb_ints_Ls = gen_integral_exprs(
             lambda La_tot, Lb_tot: CoulombShell(
-                La_tot, Lb_tot, a, b, center_A, center_B, center_C
+                La_tot, Lb_tot, ax, bx, center_A, center_B, center_C
             ),
             (l_max, l_max),
             "coulomb3d",
@@ -498,7 +501,7 @@ def run():
 
         write_render(
             coulomb_ints_Ls,
-            (a, A, b, B, C),
+            (ax, A, bx, B, C),
             "coulomb3d",
             coulomb_doc_func,
             out_dir,
@@ -524,7 +527,7 @@ def run():
 
         _3center2el_ints_Ls = gen_integral_exprs(
             lambda La_tot, Lb_tot, Lc_tot: ThreeCenterTwoElectronShell(
-                La_tot, Lb_tot, Lc_tot, a, b, c, center_A, center_B, center_C
+                La_tot, Lb_tot, Lc_tot, ax, bx, cx, center_A, center_B, center_C
             ),
             (l_max, l_max, l_aux_max),
             "_3center2el3d",
@@ -532,7 +535,7 @@ def run():
         )
         write_render(
             _3center2el_ints_Ls,
-            (a, A, b, B, c, C),
+            (ax, A, bx, B, cx, C),
             "_3center2el3d",
             _3center2el_doc_func,
             out_dir,
@@ -557,7 +560,7 @@ def run():
 
         _3center2el_ints_Ls = gen_integral_exprs(
             lambda La_tot, Lb_tot, Lc_tot: ThreeCenterTwoElectronSphShell(
-                La_tot, Lb_tot, Lc_tot, a, b, c, center_A, center_B, center_C
+                La_tot, Lb_tot, Lc_tot, ax, bx, cx, center_A, center_B, center_C
             ),
             (l_max, l_max, l_aux_max),
             "_3center2el3d_sph",
@@ -566,7 +569,7 @@ def run():
         )
         write_render(
             _3center2el_ints_Ls,
-            (a, A, b, B, c, C),
+            (ax, A, bx, B, cx, C),
             "_3center2el3d_sph",
             _3center2el_doc_func,
             out_dir,
