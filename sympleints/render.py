@@ -139,6 +139,10 @@ def make_c_func(repls, reduced, args=None, name=None, doc_str=""):
     return rendered, signature
 
 
+def make_fortran_comment(comment_str):
+    return "".join([f"! {line}\n" for line in comment_str.strip().split("\n")])
+
+
 def make_f_func(repls, reduced, args=None, name=None, doc_str=""):
     if args is None:
         args = list()
@@ -165,7 +169,7 @@ def make_f_func(repls, reduced, args=None, name=None, doc_str=""):
     res_len = len(reduced)
     res_name = "res"
 
-    doc_str = "".join([f"! {line}\n" for line in doc_str.strip().split("\n")])
+    doc_str = make_fortran_comment(doc_str)
 
     # TODO: name mangling leads to A -> A_ and B -> B_ etc. conversions, as 
     # Fortran is case insensitive.
@@ -319,7 +323,7 @@ def render_f_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, commen
     funcs_joined = "\n\n".join(funcs)
 
     if comment != "":
-        raise Exception("Comments for Fortran are not yet implemented!")
+        comment = make_fortran_comment(comment)
 
     # Render F files
     f_tpl = Template(
