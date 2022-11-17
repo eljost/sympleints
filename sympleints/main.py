@@ -413,7 +413,7 @@ def run():
                 "The origin is at C."
             )
 
-        quadrupole_comment = """
+        quadrupole_comment = r"""
         Quadrupole integrals contain the upper triangular part of the symmetric
         3x3 quadrupole matrix.
 

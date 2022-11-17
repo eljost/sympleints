@@ -9,16 +9,10 @@ from sympy.printing.numpy import NumPyPrinter
 from sympy.printing.c import C99CodePrinter
 from sympy.printing.fortran import FCodePrinter
 
-
-class FCodePrinterMod(FCodePrinter):
-
-    def _print_Indexed(self, expr):
-        # prints I[0] as I[1], i.e., increments the index by one.
-        inds = [ self._print(i+1) for i in expr.indices ]
-        return "%s(%s)" % (self._print(expr.base.label), ", ".join(inds))
+from sympleints.helpers import shell_shape, shell_shape_iter
 
 
-def make_py_func(repls, reduced, args=None, name=None, doc_str=""):
+def make_py_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str=""):
     if args is None:
         args = list()
     # Generate random name, if no name was supplied
@@ -34,7 +28,9 @@ def make_py_func(repls, reduced, args=None, name=None, doc_str=""):
     print_func = NumPyPrinter(print_settings).doprint
     assignments = [Assignment(lhs, rhs) for lhs, rhs in repls]
     py_lines = [print_func(as_) for as_ in assignments]
-    return_val = print_func(reduced)
+    result_lines = [print_func(red) for red in reduced]
+
+    results_iter = zip(shape_iter, result_lines)
 
     tpl = Template(
         """
@@ -43,12 +39,17 @@ def make_py_func(repls, reduced, args=None, name=None, doc_str=""):
         \"\"\"{{ doc_str }}\"\"\"
         {% endif %}
 
+        result = np.zeros({{ shape }}, dtype=float)
+
         {% for line in py_lines %}
         {{ line }}
         {% endfor %}
 
         # {{ n_return_vals }} item(s)
-        return numpy.array({{ return_val }})
+        {% for inds, res_line in results_iter %}
+        result[*inds] = {{ res_line }}
+        {% endfor %}
+        return result
     """,
         trim_blocks=True,
         lstrip_blocks=True,
@@ -59,12 +60,61 @@ def make_py_func(repls, reduced, args=None, name=None, doc_str=""):
             name=name,
             args=args,
             py_lines=py_lines,
-            return_val=return_val,
+            results_iter=results_iter,
             n_return_vals=len(reduced),
             doc_str=doc_str,
+            shape = shape,
         )
     ).strip()
     return rendered
+
+
+def render_py_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, comment=""):
+    if add_imports is None:
+        add_imports = ()
+    add_imports_str = "\n".join(add_imports)
+    if add_imports:
+        add_imports_str += "\n\n"
+
+    args = ", ".join((map(str, args)))
+
+    py_funcs = list()
+    for (repls, reduced), L_tots in exprs_Ls:
+        shape = shell_shape(L_tots, cartesian=True)
+        shape_iter = shell_shape_iter(L_tots, cartesian=True)
+        doc_str = doc_func(L_tots)
+        doc_str += "\n\nGenerated code; DO NOT modify by hand!"
+        name = base_name + "_" + "".join(str(l) for l in L_tots)
+        print(f"Rendering '{name}' ... ", end="")
+        start = time.time()
+        py_func = make_py_func(
+            repls, reduced, shape, shape_iter, args=args, name=name, doc_str=doc_str
+        )
+        dur = time.time() - start
+        print(f"finished in {dur: >8.2f} s")
+        py_funcs.append(py_func)
+    py_funcs_joined = "\n\n".join(py_funcs)
+
+    if comment != "":
+        comment = f'"""\n{comment}\n"""\n\n'
+
+    np_tpl = Template(
+        "import numpy\n\n{{ add_imports }}{{ comment }}{{ py_funcs }}",
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    np_rendered = np_tpl.render(
+        comment=comment, add_imports=add_imports_str, py_funcs=py_funcs_joined
+    )
+    np_rendered = textwrap.dedent(np_rendered)
+    try:
+        from black import format_str, FileMode
+
+        np_rendered = format_str(np_rendered, mode=FileMode(line_length=90))
+    except ModuleNotFoundError:
+        print("Skipped formatting with black, as it is not installed!")
+
+    return np_rendered
 
 
 def make_c_func(repls, reduced, args=None, name=None, doc_str=""):
@@ -139,6 +189,49 @@ def make_c_func(repls, reduced, args=None, name=None, doc_str=""):
     return rendered, signature
 
 
+def render_c_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, comment=""):
+    if add_imports is not None:
+        raise Exception("Implement me!")
+
+    arg_strs = [str(arg) for arg in args]
+
+    funcs = list()
+    signatures = list()
+    for (repls, reduced), L_tots in exprs_Ls:
+        doc_str = doc_func(L_tots)
+        doc_str += "\n\n\t\tGenerated code; DO NOT modify by hand!"
+        doc_str = textwrap.dedent(doc_str)
+        name = base_name + "_" + "".join(str(l) for l in L_tots)
+        func, signature = make_c_func(
+            repls, reduced, args=arg_strs, name=name, doc_str=doc_str
+        )
+        funcs.append(func)
+        signatures.append(signature)
+    funcs_joined = "\n\n".join(funcs)
+
+    if comment != "":
+        comment = f"/*{comment}*/"
+
+    # Render C files
+    c_tpl = Template(
+        "#include <math.h>\n\n{{ comment }}\n\n{{ funcs }}",
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    c_rendered = c_tpl.render(comment=comment, funcs=funcs_joined)
+    c_rendered = textwrap.dedent(c_rendered)
+    # Render simple header file
+    h_rendered = "\n".join([f"{sig};" for sig in signatures])
+    return c_rendered, h_rendered
+
+
+class FCodePrinterMod(FCodePrinter):
+    def _print_Indexed(self, expr):
+        # prints I[0] as I[1], i.e., increments the index by one.
+        inds = [self._print(i + 1) for i in expr.indices]
+        return "%s(%s)" % (self._print(expr.base.label), ", ".join(inds))
+
+
 def make_fortran_comment(comment_str):
     return "".join([f"! {line}\n" for line in comment_str.strip().split("\n")])
 
@@ -171,9 +264,10 @@ def make_f_func(repls, reduced, args=None, name=None, doc_str=""):
 
     doc_str = make_fortran_comment(doc_str)
 
-    # TODO: name mangling leads to A -> A_ and B -> B_ etc. conversions, as 
+    # TODO: name mangling leads to A -> A_ and B -> B_ etc. conversions, as
     # Fortran is case insensitive.
-    tpl = Template("""pure function {{ name }} ({{ args_str }}) result ( {{res_name}} )
+    tpl = Template(
+        """pure function {{ name }} ({{ args_str }}) result ( {{res_name}} )
 
         {% if doc_str %}
         {{ doc_str }}
@@ -224,86 +318,6 @@ def make_f_func(repls, reduced, args=None, name=None, doc_str=""):
     return rendered
 
 
-def render_py_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, comment=""):
-    if add_imports is None:
-        add_imports = ()
-    add_imports_str = "\n".join(add_imports)
-    if add_imports:
-        add_imports_str += "\n\n"
-
-    args = ", ".join((map(str, args)))
-
-    py_funcs = list()
-    for (repls, reduced), L_tots in exprs_Ls:
-        doc_str = doc_func(L_tots)
-        doc_str += "\n\nGenerated code; DO NOT modify by hand!"
-        name = base_name + "_" + "".join(str(l) for l in L_tots)
-        print(f"Rendering '{name}' ... ", end="")
-        start = time.time()
-        py_func = make_py_func(repls, reduced, args=args, name=name, doc_str=doc_str)
-        dur = time.time() - start
-        print(f"finished in {dur: >8.2f} s")
-        py_funcs.append(py_func)
-    py_funcs_joined = "\n\n".join(py_funcs)
-
-    if comment != "":
-        comment = f'"""\n{comment}\n"""\n\n'
-
-    np_tpl = Template(
-        "import numpy\n\n{{ add_imports }}{{ comment }}{{ py_funcs }}",
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
-    np_rendered = np_tpl.render(
-        comment=comment, add_imports=add_imports_str, py_funcs=py_funcs_joined
-    )
-    np_rendered = textwrap.dedent(np_rendered)
-    try:
-        from black import format_str, FileMode
-
-        np_rendered = format_str(np_rendered, mode=FileMode(line_length=90))
-    except ModuleNotFoundError:
-        print("Skipped formatting with black, as it is not installed!")
-
-    return np_rendered
-
-
-def render_c_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, comment=""):
-    if add_imports is not None:
-        raise Exception("Implement me!")
-
-    arg_strs = [str(arg) for arg in args]
-
-    funcs = list()
-    signatures = list()
-    for (repls, reduced), L_tots in exprs_Ls:
-        doc_str = doc_func(L_tots)
-        doc_str += "\n\n\t\tGenerated code; DO NOT modify by hand!"
-        doc_str = textwrap.dedent(doc_str)
-        name = base_name + "_" + "".join(str(l) for l in L_tots)
-        func, signature = make_c_func(
-            repls, reduced, args=arg_strs, name=name, doc_str=doc_str
-        )
-        funcs.append(func)
-        signatures.append(signature)
-    funcs_joined = "\n\n".join(funcs)
-
-    if comment != "":
-        comment = f"/*{comment}*/"
-
-    # Render C files
-    c_tpl = Template(
-        "#include <math.h>\n\n{{ comment }}\n\n{{ funcs }}",
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
-    c_rendered = c_tpl.render(comment=comment, funcs=funcs_joined)
-    c_rendered = textwrap.dedent(c_rendered)
-    # Render simple header file
-    h_rendered = "\n".join([f"{sig};" for sig in signatures])
-    return c_rendered, h_rendered
-
-
 def render_f_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, comment=""):
     if add_imports is not None:
         raise Exception("Implement me!")
@@ -316,9 +330,7 @@ def render_f_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, commen
         doc_str += "\n\n\t\tGenerated code; DO NOT modify by hand!"
         doc_str = textwrap.dedent(doc_str)
         name = base_name + "_" + "".join(str(l) for l in L_tots)
-        func = make_f_func(
-            repls, reduced, args=arg_strs, name=name, doc_str=doc_str
-        )
+        func = make_f_func(repls, reduced, args=arg_strs, name=name, doc_str=doc_str)
         funcs.append(func)
     funcs_joined = "\n\n".join(funcs)
 

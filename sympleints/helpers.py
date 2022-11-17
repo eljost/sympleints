@@ -14,3 +14,17 @@ def canonical_order(L):
 def shell_iter(Ls):
     """Iterator over cartesian product of L values in Ls."""
     return it.product(*[canonical_order(L) for L in Ls])
+
+
+def shell_shape(Ls, cartesian=True):
+    if cartesian:
+        size = lambda L: 2 * L + 1
+    else:  # Spherical
+        size = lambda L: (L + 2) * (L + 1) // 2
+    return tuple(map(size, Ls))
+
+
+def shell_shape_iter(Ls, **kwargs):
+    shape = shell_shape(Ls, **kwargs)
+    ranges = [range(s) for s in shape]
+    return it.product(*ranges)
