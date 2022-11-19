@@ -18,9 +18,9 @@ def shell_iter(Ls):
 
 def shell_shape(Ls, cartesian=True):
     if cartesian:
-        size = lambda L: 2 * L + 1
-    else:  # Spherical
         size = lambda L: (L + 2) * (L + 1) // 2
+    else:  # Spherical
+        size = lambda L: 2 * L + 1
     return tuple(map(size, Ls))
 
 
