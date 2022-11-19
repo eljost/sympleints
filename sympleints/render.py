@@ -12,6 +12,10 @@ from sympy.printing.fortran import FCodePrinter
 from sympleints.helpers import shell_shape, shell_shape_iter
 
 
+def func_name_from_Ls(name, Ls):
+    return name + "_" + "".join(str(l) for l in Ls)
+
+
 def make_py_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str=""):
     if args is None:
         args = list()
@@ -39,7 +43,7 @@ def make_py_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_st
         \"\"\"{{ doc_str }}\"\"\"
         {% endif %}
 
-        result = np.zeros({{ shape }}, dtype=float)
+        result = numpy.zeros({{ shape }}, dtype=float)
 
         {% for line in py_lines %}
         {{ line }}
@@ -47,7 +51,7 @@ def make_py_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_st
 
         # {{ n_return_vals }} item(s)
         {% for inds, res_line in results_iter %}
-        result[*inds] = {{ res_line }}
+        result[{{ inds|join(", ")}}] = {{ res_line }}
         {% endfor %}
         return result
     """,
@@ -63,58 +67,89 @@ def make_py_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_st
             results_iter=results_iter,
             n_return_vals=len(reduced),
             doc_str=doc_str,
-            shape = shape,
+            shape=shape,
         )
     ).strip()
     return rendered
 
 
-def render_py_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, comment=""):
-    if add_imports is None:
-        add_imports = ()
+def make_py_dispatch_func(name, args, py_func_map, L_num):
+    args_str = ", ".join([str(arg) for arg in args])
+    # Ls_args_str = "Ls, " + args_str
+    tpl = Template(
+        """
+    def {{ name }}(Ls, {{ args_str }}):
+        {% for Ls, func_name in func_map.items() %}
+            {% if loop.index0 == 0 %}
+            if Ls == {{ Ls }}:
+            {% else %}
+            elif Ls == {{ Ls }}:
+            {% endif %}
+                return {{ func_name }}({{ args_str }})
+        {% endfor %}
+        {#
+            else:
+                raise Exception(f"'{{ name }}' for Ls={Ls} not available!")
+        #}
+    """,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    rendered = textwrap.dedent(
+        tpl.render(name=name, args_str=args_str, func_map=py_func_map)
+    ).strip()
+    return rendered
+
+
+def render_py_module(funcs, add_imports, comment):
+    np_tpl = Template(
+        "import numpy\n\n{{ add_imports }}{{ comment }}{{ funcs }}",
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+
+    joined = "\n\n".join(funcs)
     add_imports_str = "\n".join(add_imports)
     if add_imports:
         add_imports_str += "\n\n"
+    rendered = np_tpl.render(
+        comment=comment,
+        add_imports=add_imports_str,
+        funcs=joined,
+    )
+    rendered = textwrap.dedent(rendered)
+    try:
+        from black import format_str, FileMode
 
+        rendered = format_str(rendered, mode=FileMode(line_length=90))
+    except ModuleNotFoundError:
+        print("Skipped formatting with black, as it is not installed!")
+    return rendered
+
+
+def render_py_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None):
     args = ", ".join((map(str, args)))
+    if add_imports is None:
+        add_imports = ()
 
-    py_funcs = list()
+    funcs = list()
+    func_map = dict()
     for (repls, reduced), L_tots in exprs_Ls:
         shape = shell_shape(L_tots, cartesian=True)
         shape_iter = shell_shape_iter(L_tots, cartesian=True)
         doc_str = doc_func(L_tots)
         doc_str += "\n\nGenerated code; DO NOT modify by hand!"
-        name = base_name + "_" + "".join(str(l) for l in L_tots)
+        name = func_name_from_Ls(base_name, L_tots)
+        func_map[L_tots] = name
         print(f"Rendering '{name}' ... ", end="")
         start = time.time()
-        py_func = make_py_func(
+        func = make_py_func(
             repls, reduced, shape, shape_iter, args=args, name=name, doc_str=doc_str
         )
         dur = time.time() - start
         print(f"finished in {dur: >8.2f} s")
-        py_funcs.append(py_func)
-    py_funcs_joined = "\n\n".join(py_funcs)
-
-    if comment != "":
-        comment = f'"""\n{comment}\n"""\n\n'
-
-    np_tpl = Template(
-        "import numpy\n\n{{ add_imports }}{{ comment }}{{ py_funcs }}",
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
-    np_rendered = np_tpl.render(
-        comment=comment, add_imports=add_imports_str, py_funcs=py_funcs_joined
-    )
-    np_rendered = textwrap.dedent(np_rendered)
-    try:
-        from black import format_str, FileMode
-
-        np_rendered = format_str(np_rendered, mode=FileMode(line_length=90))
-    except ModuleNotFoundError:
-        print("Skipped formatting with black, as it is not installed!")
-
-    return np_rendered
+        funcs.append(func)
+    return funcs, func_map
 
 
 def make_c_func(repls, reduced, args=None, name=None, doc_str=""):
@@ -201,7 +236,7 @@ def render_c_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, commen
         doc_str = doc_func(L_tots)
         doc_str += "\n\n\t\tGenerated code; DO NOT modify by hand!"
         doc_str = textwrap.dedent(doc_str)
-        name = base_name + "_" + "".join(str(l) for l in L_tots)
+        name = func_name_from_Ls(base_name, L_tots)
         func, signature = make_c_func(
             repls, reduced, args=arg_strs, name=name, doc_str=doc_str
         )
@@ -236,7 +271,7 @@ def make_fortran_comment(comment_str):
     return "".join([f"! {line}\n" for line in comment_str.strip().split("\n")])
 
 
-def make_f_func(repls, reduced, args=None, name=None, doc_str=""):
+def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str=""):
     if args is None:
         args = list()
     # Generate random name, if no name was supplied
@@ -258,7 +293,9 @@ def make_f_func(repls, reduced, args=None, name=None, doc_str=""):
     print_func = FCodePrinterMod(print_settings).doprint
     assignments = [Assignment(lhs, rhs) for lhs, rhs in repls]
     repl_lines = [print_func(as_) for as_ in assignments]
-    res_lines = [print_func(red) for red in reduced]
+    results = [print_func(red) for red in reduced]
+    shape_iter_plus = [[i + 1 for i in inds] for inds in shape_iter]
+    results_iter = zip(shape_iter_plus, results)
     res_len = len(reduced)
     res_name = "res"
 
@@ -275,24 +312,24 @@ def make_f_func(repls, reduced, args=None, name=None, doc_str=""):
 
         ! Arguments provided by the user
         {% for arg in exp_args %}
-        real, intent(in) :: {{ arg }}  ! Primitive exponent
+        real({{ kind }}), intent(in) :: {{ arg }}  ! Primitive exponent
         {% endfor %}
         {% for arg in center_args %}
-        real, intent(in), dimension(3) :: {{ arg }}  ! Center
+        real({{ kind  }}), intent(in), dimension(3) :: {{ arg }}  ! Center
         {% endfor %}
         ! Intermediate quantities
         {% for as_ in assignments %}
-        real :: {{ as_.lhs }}
+        real({{ kind }}) :: {{ as_.lhs }}
         {% endfor %}
         ! Return value
-        real, dimension({{ res_len }}) :: {{ res_name }}
+        real({{ kind }}), dimension({{ shape|join(", ") }}) :: {{ res_name }}
 
         {% for line in repl_lines %}
         {{ line }}
         {% endfor %}
 
-        {% for rhs in res_lines %}
-        {{ res_name }}({{ loop.index0+1}}) = {{ rhs }}
+        {% for inds, res_line in results_iter %}
+        {{ res_name }}({{ inds|join(", ") }})  = {{ res_line }}
         {% endfor %}
     end function {{ name }}
     """,
@@ -309,10 +346,14 @@ def make_f_func(repls, reduced, args=None, name=None, doc_str=""):
             res_len=res_len,
             assignments=assignments,
             repl_lines=repl_lines,
-            res_lines=res_lines,  # c_lines=c_lines,
+            shape=shape,
+            results_iter=results_iter,
             reduced=reduced,
             doc_str=doc_str,
             args_str=args_str,
+            # Using 'kind=real64' does not seem to work with f2py, even with
+            # .f2py_f2cmap. Using only '8' seems to work though.
+            kind="8",
         )
     ).strip()
     return rendered
@@ -326,11 +367,15 @@ def render_f_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, commen
 
     funcs = list()
     for (repls, reduced), L_tots in exprs_Ls:
+        shape = shell_shape(L_tots, cartesian=True)
+        shape_iter = shell_shape_iter(L_tots, cartesian=True)
         doc_str = doc_func(L_tots)
         doc_str += "\n\n\t\tGenerated code; DO NOT modify by hand!"
         doc_str = textwrap.dedent(doc_str)
-        name = base_name + "_" + "".join(str(l) for l in L_tots)
-        func = make_f_func(repls, reduced, args=arg_strs, name=name, doc_str=doc_str)
+        name = func_name_from_Ls(base_name, L_tots)
+        func = make_f_func(
+            repls, reduced, shape, shape_iter, args=arg_strs, name=name, doc_str=doc_str
+        )
         funcs.append(func)
     funcs_joined = "\n\n".join(funcs)
 
@@ -339,6 +384,8 @@ def render_f_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, commen
 
     # Render F files
     f_tpl = Template(
+        # Using iso_fortran_env is not needed w/ simple kind=8
+        # "module {{ base_name }}\n\nuse iso_fortran_env, only: real64\n\nimplicit none\n\n"
         "module {{ base_name }}\n\nimplicit none\n\n"
         "contains\n\n{{ funcs }}\n\nend module {{ base_name }}",
         trim_blocks=True,
@@ -370,6 +417,8 @@ def write_render(
     c_kwargs=None,
     f_kwargs=None,
 ):
+    if comment != "":
+        comment = f'"""\n{comment}\n"""\n\n'
     if py_kwargs is None:
         py_kwargs = {}
     if c_kwargs is None:
@@ -377,11 +426,30 @@ def write_render(
     if f_kwargs is None:
         f_kwargs = {}
     ints_Ls = list(ints_Ls)
+    Ls = [ls for _, ls in ints_Ls]
+    L_num = len(Ls[0])
+
     # Python
-    py_rendered = render_py_funcs(
-        ints_Ls, args, name, doc_func, comment=comment, **py_kwargs
+    py_imports = py_kwargs.get("add_imports", tuple())
+    py_funcs, py_func_map = render_py_funcs(ints_Ls, args, name, doc_func, **py_kwargs)
+    py_dispatch = make_py_dispatch_func(
+        name,
+        args,
+        py_func_map,
+        L_num,
     )
-    write_file(out_dir, f"{name}.py", py_rendered)
+    py_funcs = [py_dispatch, ] + py_funcs
+    # Pure python/numpy
+    np_rendered = render_py_module(py_funcs, py_imports, comment)
+    write_file(out_dir, f"{name}.py", np_rendered)
+
+    # Numba, jitted
+    jit_funcs = [f"@jit(nopython=True)\n{func}" for func in py_funcs]
+    numba_rendered = render_py_module(
+        jit_funcs, py_imports + ("from numba import jit",), comment
+    )
+    write_file(out_dir, f"{name}_numba.py", numba_rendered)
+
     # C
     if c:
         c_rendered, h_rendered = render_c_funcs(
@@ -394,6 +462,8 @@ def write_render(
         )
         write_file(out_dir, f"{name}.c", c_rendered)
         write_file(out_dir, f"{name}.h", h_rendered)
+
+    # Fortran
     if f:
         f_rendered = render_f_funcs(
             ints_Ls,
