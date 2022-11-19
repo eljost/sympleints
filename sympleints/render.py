@@ -1,3 +1,4 @@
+import itertools as it
 import random
 import string
 import textwrap
@@ -87,10 +88,14 @@ def make_py_dispatch_func(name, args, py_func_map, L_num):
             {% endif %}
                 return {{ func_name }}({{ args_str }})
         {% endfor %}
-        {#
+            # Guard for numba, so it picks up the right return type of the function.
+            # Without this guard, numba only recognizes an OptionalType.
+            # When the body of the else-clause actually runs, AssertionError
+            # will be raised.
             else:
-                raise Exception(f"'{{ name }}' for Ls={Ls} not available!")
-        #}
+                for L in Ls:
+                    assert 0 <= L <= _L_MAX
+                return numpy.zeros((0, 0))
     """,
         trim_blocks=True,
         lstrip_blocks=True,
@@ -101,9 +106,9 @@ def make_py_dispatch_func(name, args, py_func_map, L_num):
     return rendered
 
 
-def render_py_module(funcs, add_imports, comment):
-    np_tpl = Template(
-        "import numpy\n\n{{ add_imports }}{{ comment }}{{ funcs }}",
+def render_py_module(funcs, add_imports, L_max, comment):
+    tpl = Template("{{ comment }}\n\nimport numpy\n\n{{ add_imports }}\n\n"
+                   "_L_MAX = {{ L_max }}\n\n{{ funcs }}",
         trim_blocks=True,
         lstrip_blocks=True,
     )
@@ -112,16 +117,20 @@ def render_py_module(funcs, add_imports, comment):
     add_imports_str = "\n".join(add_imports)
     if add_imports:
         add_imports_str += "\n\n"
-    rendered = np_tpl.render(
+    rendered = tpl.render(
         comment=comment,
         add_imports=add_imports_str,
+        L_max=L_max,
         funcs=joined,
     )
     rendered = textwrap.dedent(rendered)
     try:
-        from black import format_str, FileMode
+        import black
 
-        rendered = format_str(rendered, mode=FileMode(line_length=90))
+        try:
+            rendered = black.format_str(rendered, mode=black.FileMode(line_length=90))
+        except black.parsing.InvalidInput:
+            print("Error while parsing with black. Dumping nontheless.")
     except ModuleNotFoundError:
         print("Skipped formatting with black, as it is not installed!")
     return rendered
@@ -427,6 +436,7 @@ def write_render(
         f_kwargs = {}
     ints_Ls = list(ints_Ls)
     Ls = [ls for _, ls in ints_Ls]
+    L_max = max(*it.chain(Ls))
     L_num = len(Ls[0])
 
     # Python
@@ -440,13 +450,13 @@ def write_render(
     )
     py_funcs = [py_dispatch, ] + py_funcs
     # Pure python/numpy
-    np_rendered = render_py_module(py_funcs, py_imports, comment)
+    np_rendered = render_py_module(py_funcs, py_imports, L_max, comment)
     write_file(out_dir, f"{name}.py", np_rendered)
 
     # Numba, jitted
     jit_funcs = [f"@jit(nopython=True)\n{func}" for func in py_funcs]
     numba_rendered = render_py_module(
-        jit_funcs, py_imports + ("from numba import jit",), comment
+        jit_funcs, py_imports + ("from numba import jit",), L_max, comment
     )
     write_file(out_dir, f"{name}_numba.py", numba_rendered)
 
