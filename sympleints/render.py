@@ -436,7 +436,7 @@ def write_render(
         f_kwargs = {}
     ints_Ls = list(ints_Ls)
     Ls = [ls for _, ls in ints_Ls]
-    L_max = max(*it.chain(Ls))
+    L_max = max(*it.chain(*Ls))
     L_num = len(Ls[0])
 
     # Python
@@ -454,7 +454,7 @@ def write_render(
     write_file(out_dir, f"{name}.py", np_rendered)
 
     # Numba, jitted
-    jit_funcs = [f"@jit(nopython=True)\n{func}" for func in py_funcs]
+    jit_funcs = [f"@jit(nopython=True, nogil=True)\n{func}" for func in py_funcs]
     numba_rendered = render_py_module(
         jit_funcs, py_imports + ("from numba import jit",), L_max, comment
     )
