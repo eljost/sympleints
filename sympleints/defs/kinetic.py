@@ -9,7 +9,7 @@ class Overlap1d(Multipole1d):
 
     @functools.cache
     def __call__(self, i, j):
-        return Multipole1d(self.a, self.A, self.b, self.B)(i, j, 0)
+        return Multipole1d(self.ax, self.A, self.bx, self.B)(i, j, 0)
 
 
 class Kinetic1d(TwoCenter1d):
@@ -24,24 +24,24 @@ class Kinetic1d(TwoCenter1d):
             )
 
         def recur_ovlp(i, j):
-            return Overlap1d(self.a, self.A, self.b, self.B)(i, j)
+            return Overlap1d(self.ax, self.A, self.bx, self.B)(i, j)
 
         # Base case
         if i == 0 and j == 0:
             return (
-                self.a - 2 * self.a**2 * (self.PA**2 + 1 / (2 * self.p))
+                self.ax - 2 * self.ax**2 * (self.PA**2 + 1 / (2 * self.p))
             ) * recur_ovlp(i, j)
         # Decrement i
         elif i > 0:
             # Eq. (9.3.41)
-            return recur_rel(i - 1, j, self.PA) + self.b / self.p * (
-                2 * self.a * recur_ovlp(i, j) - i * recur_ovlp(i - 2, j)
+            return recur_rel(i - 1, j, self.PA) + self.bx / self.p * (
+                2 * self.ax * recur_ovlp(i, j) - i * recur_ovlp(i - 2, j)
             )
         # Decrement j
         elif j > 0:
             # Eq. (9.3.41)
-            return recur_rel(i, j - 1, self.PB) + self.a / self.p * (
-                2 * self.b * recur_ovlp(i, j) - j * recur_ovlp(i, j - 2)
+            return recur_rel(i, j - 1, self.PB) + self.ax / self.p * (
+                2 * self.bx * recur_ovlp(i, j) - j * recur_ovlp(i, j - 2)
             )
 
 

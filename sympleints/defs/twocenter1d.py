@@ -2,22 +2,22 @@ from sympy import exp
 
 
 class TwoCenter1d:
-    def __init__(self, a, A, b, B, C=None):
-        self.a = a
+    def __init__(self, ax, A, bx, B, C=None):
+        self.ax = ax
         self.A = A
-        self.b = b
+        self.bx = bx
         self.B = B
         self.C = C
 
     @property
     def p(self):
         """Total exponent p."""
-        return self.a + self.b
+        return self.ax + self.bx
 
     @property
     def mu(self):
         """Reduced exponent mu."""
-        return self.a * self.b / self.p
+        return self.ax * self.bx / self.p
 
     @property
     def AB(self):
@@ -27,7 +27,7 @@ class TwoCenter1d:
     @property
     def P(self):
         """Center-of-charge coordinate."""
-        return (self.a * self.A + self.b * self.B) / self.p
+        return (self.ax * self.A + self.bx * self.B) / self.p
 
     @property
     def PA(self):

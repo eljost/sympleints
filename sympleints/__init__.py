@@ -1,1 +1,1 @@
-from sympleints.helpers import shell_iter
+from sympleints.helpers import canonical_order, shell_iter
