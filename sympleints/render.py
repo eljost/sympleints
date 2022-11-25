@@ -80,7 +80,7 @@ def make_py_dispatch_func(name, args, py_func_map, L_num):
     tpl = Template(
         """
     def {{ name }}(Ls, {{ args_str }}):
-        {% for Ls, func_name in func_map.items() %}
+        {% for Ls, func_name in func_map %}
             {% if loop.index0 == 0 %}
             if Ls == {{ Ls }}:
             {% else %}
@@ -107,8 +107,9 @@ def make_py_dispatch_func(name, args, py_func_map, L_num):
 
 
 def render_py_module(funcs, add_imports, L_max, comment):
-    tpl = Template("{{ comment }}\n\nimport numpy\n\n{{ add_imports }}\n\n"
-                   "_L_MAX = {{ L_max }}\n\n{{ funcs }}",
+    tpl = Template(
+        "{{ comment }}\n\nimport numpy\n\n{{ add_imports }}\n\n"
+        "_L_MAX = {{ L_max }}\n\n{{ funcs }}",
         trim_blocks=True,
         lstrip_blocks=True,
     )
@@ -142,14 +143,14 @@ def render_py_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None):
         add_imports = ()
 
     funcs = list()
-    func_map = dict()
+    func_map = list()
     for (repls, reduced), L_tots in exprs_Ls:
         shape = shell_shape(L_tots, cartesian=True)
         shape_iter = shell_shape_iter(L_tots, cartesian=True)
         doc_str = doc_func(L_tots)
         doc_str += "\n\nGenerated code; DO NOT modify by hand!"
         name = func_name_from_Ls(base_name, L_tots)
-        func_map[L_tots] = name
+        func_map.append((L_tots, name))
         print(f"Rendering '{name}' ... ", end="")
         start = time.time()
         func = make_py_func(
@@ -310,10 +311,8 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
 
     doc_str = make_fortran_comment(doc_str)
 
-    # TODO: name mangling leads to A -> A_ and B -> B_ etc. conversions, as
-    # Fortran is case insensitive.
     tpl = Template(
-        """pure function {{ name }} ({{ args_str }}) result ( {{res_name}} )
+        """subroutine {{ name }} ({{ args_str }}, {{ res_name }})
 
         {% if doc_str %}
         {{ doc_str }}
@@ -326,12 +325,13 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
         {% for arg in center_args %}
         real({{ kind  }}), intent(in), dimension(3) :: {{ arg }}  ! Center
         {% endfor %}
+        ! Return value
+        real({{ kind }}), intent(in out) :: {{ res_name }}(:, :)
+
         ! Intermediate quantities
         {% for as_ in assignments %}
         real({{ kind }}) :: {{ as_.lhs }}
         {% endfor %}
-        ! Return value
-        real({{ kind }}), dimension({{ shape|join(", ") }}) :: {{ res_name }}
 
         {% for line in repl_lines %}
         {{ line }}
@@ -340,7 +340,7 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
         {% for inds, res_line in results_iter %}
         {{ res_name }}({{ inds|join(", ") }})  = {{ res_line }}
         {% endfor %}
-    end function {{ name }}
+    end subroutine {{ name }}
     """,
         trim_blocks=True,
         lstrip_blocks=True,
@@ -362,7 +362,65 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
             args_str=args_str,
             # Using 'kind=real64' does not seem to work with f2py, even with
             # .f2py_f2cmap. Using only '8' seems to work though.
-            kind="8",
+            kind="kind=real64",
+        )
+    ).strip()
+    return rendered
+
+
+def make_f_dispatch_func(name, args, func_map, L_num, sph):
+    Ls = [f"L{ind}" for _, ind in zip(range(L_num), ("a", "b", "c", "d"))]
+    Ls_str = ", ".join(Ls)
+    args_str = ", ".join([str(arg) for arg in args])
+    res_name = "res"
+
+    if sph:
+        dims = [f"(2*{L} + 1" for L in Ls]
+    else:
+        dims = [f"({L}+2)*({L}+1)/2" for L in Ls]
+    res_dim = ", ".join(dims)
+
+    comps_funcs = list()
+    for ang_moms, func_name in func_map:
+        condition = (
+            "("
+            + " .and. ".join([f"({L} == {angmom})" for L, angmom in zip(Ls, ang_moms)])
+            + ")"
+        )
+        comps_funcs.append((condition, func_name))
+
+    tpl = Template(
+        """
+    function {{ name }}({{ Ls_str }}, {{ args_str }}) result({{ res_name }})
+        integer, intent(in) :: {{ Ls_str }}
+        real(kind=real64), intent(in) :: ax, bx
+        real(kind=real64), intent(in), dimension(3) :: A, B
+        real(kind=real64), dimension({{ res_dim }}) :: res
+
+        {% for comp, func_name in comps_funcs %}
+            {% if loop.index0 == 0 %}
+            if {{ comp }} then
+            {% elif loop.last %}
+            else
+            {% else %}
+            else if {{ comp }} then
+            {% endif %}
+                call {{ func_name }}({{ args_str }}, res)
+        {% endfor %}
+            end if
+    end function {{ name }}
+    """,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    rendered = textwrap.dedent(
+        tpl.render(
+            name=name,
+            res_name=res_name,
+            comps_funcs=comps_funcs,
+            Ls_str=Ls_str,
+            res_dim=res_dim,
+            args_str=args_str,
         )
     ).strip()
     return rendered
@@ -386,21 +444,26 @@ def render_f_funcs(exprs_Ls, args, base_name, doc_func, add_imports=None, commen
             repls, reduced, shape, shape_iter, args=arg_strs, name=name, doc_str=doc_str
         )
         funcs.append(func)
-    funcs_joined = "\n\n".join(funcs)
+    return funcs
 
+
+def render_f_module(funcs, base_name, comment=""):
     if comment != "":
         comment = make_fortran_comment(comment)
 
+    funcs_joined = "\n\n".join(funcs)
+
     # Render F files
+    mod_name = f"mod_{base_name}"
     f_tpl = Template(
         # Using iso_fortran_env is not needed w/ simple kind=8
         # "module {{ base_name }}\n\nuse iso_fortran_env, only: real64\n\nimplicit none\n\n"
-        "module {{ base_name }}\n\nimplicit none\n\n"
-        "contains\n\n{{ funcs }}\n\nend module {{ base_name }}",
+        "module {{ mod_name }}\n\nuse iso_fortran_env, only: real64\n\n"
+        "implicit none\n\ncontains\n\n{{ funcs }}\n\nend module {{ mod_name }}",
         trim_blocks=True,
         lstrip_blocks=True,
     )
-    f_rendered = f_tpl.render(base_name=base_name, comment=comment, funcs=funcs_joined)
+    f_rendered = f_tpl.render(mod_name=mod_name, comment=comment, funcs=funcs_joined)
     f_rendered = textwrap.dedent(f_rendered)
     # Render simple header file
     return f_rendered
@@ -441,14 +504,16 @@ def write_render(
 
     # Python
     py_imports = py_kwargs.get("add_imports", tuple())
-    py_funcs, py_func_map = render_py_funcs(ints_Ls, args, name, doc_func, **py_kwargs)
+    py_funcs, func_map = render_py_funcs(ints_Ls, args, name, doc_func, **py_kwargs)
     py_dispatch = make_py_dispatch_func(
         name,
         args,
-        py_func_map,
+        func_map,
         L_num,
     )
-    py_funcs = [py_dispatch, ] + py_funcs
+    py_funcs = [
+        py_dispatch,
+    ] + py_funcs
     # Pure python/numpy
     np_rendered = render_py_module(py_funcs, py_imports, L_max, comment)
     write_file(out_dir, f"{name}.py", np_rendered)
@@ -475,7 +540,7 @@ def write_render(
 
     # Fortran
     if f:
-        f_rendered = render_f_funcs(
+        f_funcs = render_f_funcs(
             ints_Ls,
             args,
             name,
@@ -483,4 +548,15 @@ def write_render(
             comment=comment,
             **f_kwargs,
         )
+        f_dispatch = make_f_dispatch_func(
+            name,
+            args,
+            func_map,
+            L_num,
+            sph=False,
+        )
+        f_funcs = [
+            f_dispatch,
+        ] + f_funcs
+        f_rendered = render_f_module(f_funcs, name, comment="")
         write_file(out_dir, f"{name}.f90", f_rendered)
