@@ -75,6 +75,7 @@ def make_py_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_st
 
 
 def make_py_dispatch_func(name, args, py_func_map, L_num):
+    """TODO: Should probably be switched to match/case or dict lookup."""
     args_str = ", ".join([str(arg) for arg in args])
     # Ls_args_str = "Ls, " + args_str
     tpl = Template(
@@ -308,6 +309,7 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
     results_iter = zip(shape_iter_plus, results)
     res_len = len(reduced)
     res_name = "res"
+    res_dims = ", ".join([":"] * len(shape))
 
     doc_str = make_fortran_comment(doc_str)
 
@@ -326,7 +328,7 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
         real({{ kind  }}), intent(in), dimension(3) :: {{ arg }}  ! Center
         {% endfor %}
         ! Return value
-        real({{ kind }}), intent(in out) :: {{ res_name }}(:, :)
+        real({{ kind }}), intent(in out) :: {{ res_name }}({{ res_dims }})
 
         ! Intermediate quantities
         {% for as_ in assignments %}
@@ -352,6 +354,7 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
             exp_args=exp_args,
             center_args=center_args,
             res_name=res_name,
+            res_dims=res_dims,
             res_len=res_len,
             assignments=assignments,
             repl_lines=repl_lines,
@@ -370,6 +373,8 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
 
 def make_f_dispatch_func(name, args, func_map, L_num, sph):
     Ls = [f"L{ind}" for _, ind in zip(range(L_num), ("a", "b", "c", "d"))]
+    exponents = ("ax", "bx", "cx", "dx")[:L_num]
+    centers = ("A", "B", "C", "D")
     Ls_str = ", ".join(Ls)
     args_str = ", ".join([str(arg) for arg in args])
     res_name = "res"
@@ -393,8 +398,8 @@ def make_f_dispatch_func(name, args, func_map, L_num, sph):
         """
     function {{ name }}({{ Ls_str }}, {{ args_str }}) result({{ res_name }})
         integer, intent(in) :: {{ Ls_str }}
-        real(kind=real64), intent(in) :: ax, bx
-        real(kind=real64), intent(in), dimension(3) :: A, B
+        real(kind=real64), intent(in) :: {{ exponents|join(", ") }}
+        real(kind=real64), intent(in), dimension(3) :: {{ centers|join(", ") }}
         real(kind=real64), dimension({{ res_dim }}) :: res
 
         {% for comp, func_name in comps_funcs %}
@@ -419,6 +424,8 @@ def make_f_dispatch_func(name, args, func_map, L_num, sph):
             res_name=res_name,
             comps_funcs=comps_funcs,
             Ls_str=Ls_str,
+            exponents=exponents,
+            centers=centers,
             res_dim=res_dim,
             args_str=args_str,
         )
