@@ -58,8 +58,9 @@ from sympleints.defs.coulomb import (
     ThreeCenterTwoElectronSphShell,
 )
 from sympleints import canonical_order, shell_iter
-from sympleints.defs.kinetic import gen_kinetic_shell
+from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
 from sympleints.defs.gto import CartGTOShell
+from sympleints.defs.kinetic import gen_kinetic_shell
 from sympleints.defs.multipole import gen_diag_quadrupole_shell, gen_multipole_shell
 from sympleints.defs.overlap import gen_overlap_shell
 from sympleints.render import write_render
@@ -316,16 +317,16 @@ def run():
     except NameError:
         pass
 
-    # Cartesian basis function centers A and B.
+    # Cartesian basis function centers A, B, C and D.
     center_A = get_center("A")
     center_B = get_center("B")
     center_C = get_center("C")
-    # center_D = get_center("D")
-    # center_R = get_center("R")
+    center_D = get_center("D")
+    # center_R = get_center("R")  TODO: refactor code to use R as multipole origin
     Xa, Ya, Za = symbols("Xa Ya Za")
 
     # Orbital exponents ax, bx, cx, dx.
-    ax, bx, cx, _ = symbols("ax bx cx dx", real=True)
+    ax, bx, cx, dx = symbols("ax bx cx dx", real=True)
 
     # These maps will be used to convert {Ax, Ay, ...} to array quantities
     # in the generated code. This way an iterable/np.ndarray can be used as
@@ -333,7 +334,7 @@ def run():
     A, A_map = get_map("A", center_A)
     B, B_map = get_map("B", center_B)
     C, C_map = get_map("C", center_C)
-    # D, D_map = get_map("D", center_D)
+    D, D_map = get_map("D", center_D)
 
     boys_import = ("from pysisyphus.wavefunction.ints.boys import boys",)
 
@@ -675,6 +676,41 @@ def run():
         )
         print()
 
+    #################################
+    # Four-center overlap integrals #
+    #################################
+
+    def fourcenter_overlap():
+        def doc_func(L_tots):
+            La_tot, Lb_tot, Lc_tot, Ld_tot = L_tots
+            shell_a = L_MAP[La_tot]
+            shell_b = L_MAP[Lb_tot]
+            shell_c = L_MAP[Lc_tot]
+            shell_d = L_MAP[Ld_tot]
+            return (
+                f"Cartesian ({shell_a}{shell_b}{shell_c}{shell_d}) overlap integral."
+            )
+
+        # La_tot, Lb_tot, Lc_tot, Ld_tot, a, b, c, d, A, B, C, D
+        ints_Ls = integral_gen(
+            lambda La_tot, Lb_tot, Lc_tot, Ld_tot: gen_fourcenter_overlap_shell(
+                La_tot, Lb_tot, Lc_tot, Ld_tot, ax, bx, cx, dx, center_A, center_B, center_C, center_D,
+            ),
+            (l_max, l_max, l_max, l_max),
+            (ax, bx, cx, dx),
+            "four_center_overlap",
+            (A_map, B_map, C_map, D_map),
+        )
+        write_render(
+            ints_Ls,
+            (ax, A, bx, B, cx, C, dx, D),
+            "four_center_overlap",
+            doc_func,
+            out_dir,
+            c=False,
+        )
+        print()
+
     funcs = {
         "cgto": cart_gto,  # Cartesian Gaussian-type-orbital for density evaluation
         "ovlp": overlap,  # Overlap integrals
@@ -685,6 +721,7 @@ def run():
         "coul": coulomb,  # 1-electron Coulomb integrals
         "3c2e": _3center2electron,  # 3-center-2-electron integrals for density fitting (DF)
         "3c2e_sph": _3center2electron_sph,  # Spherical 3-center-2-electron integrals for DF
+        "4covlp": fourcenter_overlap,  # Four center overlap integral
     }
 
     # Generate all possible integrals, when no 'keys' were supplied

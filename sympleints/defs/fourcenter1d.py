@@ -1,17 +1,24 @@
+import numpy as np
 from sympy import exp
 
 
+def init_vec(vec):
+    if vec is None:
+        vec = np.zeros_like(vec)
+    return vec
+
+
 class FourCenter1d:
-    def __init__(self, ax, A, bx, B, cx=None, C=None, dx=None, D=None, R=None):
+    def __init__(self, ax, A, bx, B, cx=0.0, C=None, dx=0.0, D=None, R=None):
         self.ax = ax
         self.A = A
         self.bx = bx
         self.B = B
         self.cx = cx
-        self.C = C
+        self.C = init_vec(C)
         self.dx = dx
-        self.D = D
-        self.R = R
+        self.D = init_vec(D)
+        self.R = init_vec(R)
 
     @property
     def p(self):
@@ -22,6 +29,11 @@ class FourCenter1d:
     def q(self):
         """Total exponent q."""
         return self.cx + self.dx
+
+    @property
+    def g(self):
+        """Total total ;) exponent g."""
+        return self.ax + self.bx + self.cx + self.dx
 
     @property
     def mu(self):
@@ -54,6 +66,13 @@ class FourCenter1d:
         return (self.cx * self.C + self.dx * self.D) / self.q
 
     @property
+    def G(self):
+        """Total center-of-charge coordinate of ABCD."""
+        return (
+            self.ax * self.A + self.bx * self.B + self.cx * self.C + self.dx * self.D
+        ) / self.g
+
+    @property
     def PA(self):
         """Relative coordinate/Gaussian separation X_PA."""
         return self.P - self.A
@@ -82,6 +101,22 @@ class FourCenter1d:
     def QR(self):
         """Relative coordinate/Gaussian separation X_QR."""
         return self.Q - self.R
+
+    @property
+    def GA(self):
+        return self.G - self.A
+
+    @property
+    def GB(self):
+        return self.G - self.B
+
+    @property
+    def GC(self):
+        return self.G - self.C
+
+    @property
+    def GD(self):
+        return self.G - self.D
 
     @property
     def K(self):
