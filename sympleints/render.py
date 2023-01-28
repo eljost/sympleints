@@ -17,7 +17,8 @@ def func_name_from_Ls(name, Ls):
     return name + "_" + "".join(str(l) for l in Ls)
 
 
-def make_py_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str=""):
+def make_py_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str="",
+                 multidim=True):
     if args is None:
         args = list()
     # Generate random name, if no name was supplied
@@ -34,6 +35,11 @@ def make_py_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_st
     assignments = [Assignment(lhs, rhs) for lhs, rhs in repls]
     py_lines = [print_func(as_) for as_ in assignments]
     result_lines = [print_func(red) for red in reduced]
+    # With 'multidim = True' we expect the orbital exponents and the contraction
+    # coefficients to be 2d/3d/... numpy array. Then we can utilize array broadcasting
+    # to evalute the integrals over products of primitive basis functions.
+    if multidim:
+        result_lines = [f"np.sum({line})" for line in result_lines]
 
     results_iter = zip(shape_iter, result_lines)
 

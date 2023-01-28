@@ -169,7 +169,9 @@ def apply_to_components(exprs, components, func):
     return mod_exprs
 
 
-def integral_gen_for_L(int_func, Ls, exponents, name, maps, sph=False, norm_pgto=False):
+def integral_gen_for_L(
+    int_func, Ls, exponents, contr_coeffs, name, maps, sph=False, norm_pgto=False
+):
     time_str = time.strftime("%H:%M:%S")
     start = datetime.now()
     print(f"{time_str} - Generating {Ls} {name}")
@@ -181,6 +183,8 @@ def integral_gen_for_L(int_func, Ls, exponents, name, maps, sph=False, norm_pgto
     # Generate actual list of integral expressions.
     expect_nexprs = len(list(shell_iter(Ls)))
     exprs = int_func(*Ls)
+    contr_coeff_prod = functools.reduce(lambda di, dj: di * dj, contr_coeffs[:2], 1)
+    exprs = [contr_coeff_prod * expr for expr in exprs]
     nexprs = len(exprs)
     assert len(exprs) % expect_nexprs == 0
     components = nexprs // expect_nexprs
@@ -235,7 +239,7 @@ def integral_gen_for_L(int_func, Ls, exponents, name, maps, sph=False, norm_pgto
     return (repls, reduced), Ls
 
 
-def integral_gen_getter(sph=False, norm_pgto=False):
+def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False):
     def integral_gen(
         int_func,
         L_maxs,
@@ -251,7 +255,7 @@ def integral_gen_getter(sph=False, norm_pgto=False):
 
         for Ls in it.product(*ranges):
             yield integral_gen_for_L(
-                int_func, Ls, exponents, name, maps, sph, norm_pgto
+                int_func, Ls, exponents, contr_coeffs, name, maps, sph, norm_pgto
             )
 
     return integral_gen
@@ -317,6 +321,8 @@ def run():
     except NameError:
         pass
 
+    INT_KIND = "Spherical" if sph else "Cartesian"
+
     # Cartesian basis function centers A, B, C and D.
     center_A = get_center("A")
     center_B = get_center("B")
@@ -328,6 +334,10 @@ def run():
     # Orbital exponents ax, bx, cx, dx.
     ax, bx, cx, dx = symbols("ax bx cx dx", real=True)
 
+    # Contraction coefficients da, db, dc, dd.
+    contr_coeffs = symbols("da db dc dd", real=True)
+    da, db, dc, dd = contr_coeffs
+
     # These maps will be used to convert {Ax, Ay, ...} to array quantities
     # in the generated code. This way an iterable/np.ndarray can be used as
     # function argument instead of (Ax, Ay, Az, Bx, By, Bz).
@@ -338,7 +348,9 @@ def run():
 
     boys_import = ("from pysisyphus.wavefunction.ints.boys import boys",)
 
-    integral_gen = integral_gen_getter(sph=sph, norm_pgto=norm_pgto)
+    integral_gen = integral_gen_getter(
+        contr_coeffs=contr_coeffs, sph=sph, norm_pgto=norm_pgto
+    )
 
     #################
     # Cartesian GTO #
@@ -349,7 +361,7 @@ def run():
             (La_tot,) = L_tot
             shell_a = L_MAP[La_tot]
             return (
-                f"3D Cartesian {shell_a}-Gaussian shell.\n\n"
+                f"3D {INT_KIND} {shell_a}-Gaussian shell.\n\n"
                 "Exponent a, centered at A, evaluated at (Xa, Ya, Za) + A."
             )
 
@@ -362,7 +374,7 @@ def run():
         )
         write_render(
             cart_gto_Ls,
-            (ax, Xa, Ya, Za),
+            (ax, da, Xa, Ya, Za),
             "cart_gto3d",
             cart_gto_doc_func,
             out_dir,
@@ -379,7 +391,7 @@ def run():
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
-            return f"Cartesian 3D ({shell_a}{shell_b}) overlap integral."
+            return f"{INT_KIND} 3D ({shell_a}{shell_b}) overlap integral."
 
         ovlp_ints_Ls = integral_gen(
             lambda La_tot, Lb_tot: gen_overlap_shell(La_tot, Lb_tot, ax, bx, A, B),
@@ -389,7 +401,12 @@ def run():
             (A_map, B_map),
         )
         write_render(
-            ovlp_ints_Ls, (ax, A, bx, B), "ovlp3d", ovlp_doc_func, out_dir, c=True
+            ovlp_ints_Ls,
+            (ax, da, A, bx, db, B),
+            "ovlp3d",
+            ovlp_doc_func,
+            out_dir,
+            c=True,
         )
         print()
 
@@ -403,7 +420,7 @@ def run():
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return (
-                f"Cartesian 3D ({shell_a}{shell_b}) dipole moment integrals.\n"
+                f"{INT_KIND} 3D ({shell_a}{shell_b}) dipole moment integrals.\n"
                 "The origin is at C."
             )
 
@@ -440,7 +457,7 @@ def run():
         )
         write_render(
             dipole_ints_Ls,
-            (ax, A, bx, B, C),
+            (ax, da, A, bx, db, B, C),
             "dipole3d",
             dipole_doc_func,
             out_dir,
@@ -459,7 +476,7 @@ def run():
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return (
-                f"Cartesian 3D ({shell_a}{shell_b}) quadrupole moment integrals\n"
+                f"{INT_KIND} 3D ({shell_a}{shell_b}) quadrupole moment integrals\n"
                 "for operators x², y² and z². The origin is at C."
             )
 
@@ -483,7 +500,7 @@ def run():
         )
         write_render(
             diag_quadrupole_ints_Ls,
-            (ax, A, bx, B, C),
+            (ax, da, A, bx, db, B, C),
             "diag_quadrupole3d",
             diag_quadrupole_doc_func,
             out_dir,
@@ -502,7 +519,7 @@ def run():
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return (
-                f"Cartesian 3D ({shell_a}{shell_b}) quadrupole moment integrals.\n"
+                f"{INT_KIND} 3D ({shell_a}{shell_b}) quadrupole moment integrals.\n"
                 "The origin is at C."
             )
 
@@ -535,7 +552,7 @@ def run():
 
         write_render(
             quadrupole_ints_Ls,
-            (ax, A, bx, B, C),
+            (ax, da, A, bx, db, B, C),
             "quadrupole3d",
             quadrupole_doc_func,
             out_dir,
@@ -553,7 +570,7 @@ def run():
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
-            return f"Cartesian 3D ({shell_a}{shell_b}) kinetic energy integral."
+            return f"{INT_KIND} 3D ({shell_a}{shell_b}) kinetic energy integral."
 
         kinetic_ints_Ls = integral_gen(
             lambda La_tot, Lb_tot: gen_kinetic_shell(
@@ -566,7 +583,7 @@ def run():
         )
         write_render(
             kinetic_ints_Ls,
-            (ax, A, bx, B),
+            (ax, da, A, bx, db, B),
             "kinetic3d",
             kinetic_doc_func,
             out_dir,
@@ -583,7 +600,7 @@ def run():
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
-            return f"Cartesian ({shell_a}{shell_b}) 1-electron Coulomb integral."
+            return f"{INT_KIND} ({shell_a}{shell_b}) 1-electron Coulomb integral."
 
         coulomb_ints_Ls = integral_gen(
             lambda La_tot, Lb_tot: CoulombShell(
@@ -597,7 +614,7 @@ def run():
 
         write_render(
             coulomb_ints_Ls,
-            (ax, A, bx, B, C),
+            (ax, da, A, bx, db, B, C),
             "coulomb3d",
             coulomb_doc_func,
             out_dir,
@@ -617,7 +634,7 @@ def run():
             shell_b = L_MAP[Lb_tot]
             shell_c = L_MAP[Lc_tot]
             return (
-                f"Cartesian ({shell_a}{shell_b}|{shell_c}) "
+                f"{INT_KIND} ({shell_a}{shell_b}|{shell_c}) "
                 "three-center two-electron repulsion integral."
             )
 
@@ -632,7 +649,7 @@ def run():
         )
         write_render(
             _3center2el_ints_Ls,
-            (ax, A, bx, B, cx, C),
+            (ax, da, A, bx, db, B, cx, dc, C),
             "_3center2el3d",
             _3center2el_doc_func,
             out_dir,
@@ -648,7 +665,7 @@ def run():
             shell_b = L_MAP[Lb_tot]
             shell_c = L_MAP[Lc_tot]
             return (
-                f"Cartesian ({shell_a}{shell_b}|{shell_c}) "
+                f"{INT_KIND} ({shell_a}{shell_b}|{shell_c}) "
                 "three-center two-electron repulsion integral for conversion to "
                 "spherical harmonics.\nUses Ahlrichs' vertical recursion relation, "
                 "that leaves out some terms, that cancel\nwhen convertig to "
@@ -667,7 +684,7 @@ def run():
         )
         write_render(
             _3center2el_ints_Ls,
-            (ax, A, bx, B, cx, C),
+            (ax, da, A, bx, db, B, cx, dc, C),
             "_3center2el3d_sph",
             _3center2el_doc_func,
             out_dir,
@@ -688,13 +705,24 @@ def run():
             shell_c = L_MAP[Lc_tot]
             shell_d = L_MAP[Ld_tot]
             return (
-                f"Cartesian ({shell_a}{shell_b}{shell_c}{shell_d}) overlap integral."
+                f"{INT_KIND} ({shell_a}{shell_b}{shell_c}{shell_d}) overlap integral."
             )
 
         # La_tot, Lb_tot, Lc_tot, Ld_tot, a, b, c, d, A, B, C, D
         ints_Ls = integral_gen(
             lambda La_tot, Lb_tot, Lc_tot, Ld_tot: gen_fourcenter_overlap_shell(
-                La_tot, Lb_tot, Lc_tot, Ld_tot, ax, bx, cx, dx, center_A, center_B, center_C, center_D,
+                La_tot,
+                Lb_tot,
+                Lc_tot,
+                Ld_tot,
+                ax,
+                bx,
+                cx,
+                dx,
+                center_A,
+                center_B,
+                center_C,
+                center_D,
             ),
             (l_max, l_max, l_max, l_max),
             (ax, bx, cx, dx),
@@ -703,7 +731,7 @@ def run():
         )
         write_render(
             ints_Ls,
-            (ax, A, bx, B, cx, C, dx, D),
+            (ax, da, A, bx, db, B, cx, dc, C, dx, dd, D),
             "four_center_overlap",
             doc_func,
             out_dir,
