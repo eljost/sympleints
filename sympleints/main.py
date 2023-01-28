@@ -25,6 +25,7 @@
 
 
 import argparse
+
 from datetime import datetime
 import functools
 import itertools as it
@@ -185,6 +186,7 @@ def integral_gen_for_L(
     exprs = int_func(*Ls)
     contr_coeff_prod = functools.reduce(lambda di, dj: di * dj, contr_coeffs[:2], 1)
     exprs = [contr_coeff_prod * expr for expr in exprs]
+    print("\t... Multiplied contraction coefficients")
     nexprs = len(exprs)
     assert len(exprs) % expect_nexprs == 0
     components = nexprs // expect_nexprs
@@ -349,7 +351,9 @@ def run():
     boys_import = ("from pysisyphus.wavefunction.ints.boys import boys",)
 
     integral_gen = integral_gen_getter(
-        contr_coeffs=contr_coeffs, sph=sph, norm_pgto=norm_pgto
+        contr_coeffs=contr_coeffs,
+        sph=sph,
+        norm_pgto=norm_pgto,
     )
 
     #################
@@ -747,9 +751,9 @@ def run():
         "qpm": quadrupole,  # Quadratic moment (quadrupole) integrals
         "kin": kinetic,  # Kinetic energy integrals
         "coul": coulomb,  # 1-electron Coulomb integrals
-        "3c2e": _3center2electron,  # 3-center-2-electron integrals for density fitting (DF)
+        # "3c2e": _3center2electron,  # 3-center-2-electron integrals for density fitting (DF)
         "3c2e_sph": _3center2electron_sph,  # Spherical 3-center-2-electron integrals for DF
-        "4covlp": fourcenter_overlap,  # Four center overlap integral
+        # "4covlp": fourcenter_overlap,  # Four center overlap integral
     }
 
     # Generate all possible integrals, when no 'keys' were supplied
@@ -757,6 +761,7 @@ def run():
         keys = funcs.keys()
 
     start = datetime.now()
+
     for key in keys:
         funcs[key]()
 

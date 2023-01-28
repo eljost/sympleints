@@ -17,8 +17,9 @@ def func_name_from_Ls(name, Ls):
     return name + "_" + "".join(str(l) for l in Ls)
 
 
-def make_py_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str="",
-                 multidim=True):
+def make_py_func(
+    repls, reduced, shape, shape_iter, args=None, name=None, doc_str="", multidim=True
+):
     if args is None:
         args = list()
     # Generate random name, if no name was supplied
@@ -110,6 +111,22 @@ def make_py_dispatch_func(name, args, py_func_map, L_num):
     rendered = textwrap.dedent(
         tpl.render(name=name, args_str=args_str, func_map=py_func_map)
     ).strip()
+    return rendered
+
+
+def make_func_dict(name, func_map):
+    tpl = Template(
+        """
+        {{ name }} = {
+        {% for Ls, func_name in func_map %}
+        {{ Ls }}: {{ func_name }},
+        {% endfor %}
+        }
+        """,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    rendered = textwrap.dedent(tpl.render(name=name, func_map=func_map)).strip()
     return rendered
 
 
@@ -518,6 +535,7 @@ def write_render(
     # Python
     py_imports = py_kwargs.get("add_imports", tuple())
     py_funcs, func_map = render_py_funcs(ints_Ls, args, name, doc_func, **py_kwargs)
+    """
     py_dispatch = make_py_dispatch_func(
         name,
         args,
@@ -527,6 +545,9 @@ def write_render(
     py_funcs = [
         py_dispatch,
     ] + py_funcs
+    """
+    py_func_dict = make_func_dict(name, func_map)
+    py_funcs = py_funcs + [py_func_dict, ]
     # Pure python/numpy
     np_rendered = render_py_module(py_funcs, py_imports, L_max, comment)
     write_file(out_dir, f"{name}.py", np_rendered)
