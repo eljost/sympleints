@@ -1,3 +1,4 @@
+import functools
 import itertools as it
 import random
 import string
@@ -40,7 +41,21 @@ def make_py_func(
     # coefficients to be 2d/3d/... numpy array. Then we can utilize array broadcasting
     # to evalute the integrals over products of primitive basis functions.
     if multidim:
-        result_lines = [f"np.sum({line})" for line in result_lines]
+        result_lines = [f"numpy.sum({line})" for line in result_lines]
+
+    # shape_iter must be modified, if multiple components are present.
+    # This calculation should probably be done outside the function, so we don't
+    # have to reimplement this for the other languages.
+    per_component = functools.reduce(lambda a, b: a * b, shape, 1)
+    components = len(reduced) // per_component
+    if components > 1:
+        shape = (components, *shape)
+        shapes = list(shape_iter)
+        new_shape_iter = list()
+        for comp in range(components):
+            for shape_ in shapes:
+                new_shape_iter.append((comp, *shape_))
+        shape_iter = new_shape_iter
 
     results_iter = zip(shape_iter, result_lines)
 
@@ -547,7 +562,9 @@ def write_render(
     ] + py_funcs
     """
     py_func_dict = make_func_dict(name, func_map)
-    py_funcs = py_funcs + [py_func_dict, ]
+    py_funcs = py_funcs + [
+        py_func_dict,
+    ]
     # Pure python/numpy
     np_rendered = render_py_module(py_funcs, py_imports, L_max, comment)
     write_file(out_dir, f"{name}.py", np_rendered)
