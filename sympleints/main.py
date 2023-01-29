@@ -73,14 +73,15 @@ except ModuleNotFoundError:
     print("pysisyphus is not installed. Disabling Cartesian->spherical transformation.")
 
 KEYS = (
-    "cgto",
+    "gto",
     "ovlp",
     "dpm",
     "dqpm",
     "qpm",
     "kin",
     "coul",
-    "3c2e",
+    "2c2e",
+    # "3c2e",
     "3c2e_sph",
 )
 ONE_THRESH = 1e-14

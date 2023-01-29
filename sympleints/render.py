@@ -570,11 +570,11 @@ def write_render(
     write_file(out_dir, f"{name}.py", np_rendered)
 
     # Numba, jitted
-    jit_funcs = [f"@jit(nopython=True, nogil=True)\n{func}" for func in py_funcs]
-    numba_rendered = render_py_module(
-        jit_funcs, py_imports + ("from numba import jit",), L_max, comment
-    )
-    write_file(out_dir, f"{name}_numba.py", numba_rendered)
+    # jit_funcs = [f"@jit(nopython=True, nogil=True)\n{func}" for func in py_funcs]
+    # numba_rendered = render_py_module(
+        # jit_funcs, py_imports + ("from numba import jit",), L_max, comment
+    # )
+    # write_file(out_dir, f"{name}_numba.py", numba_rendered)
 
     # C
     if c:
