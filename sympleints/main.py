@@ -55,6 +55,7 @@ from sympy import (
 from sympleints.config import L_MAX, L_AUX_MAX, L_MAP
 from sympleints.defs.coulomb import (
     CoulombShell,
+    TwoCenterTwoElectronShell,
     ThreeCenterTwoElectronShell,
     ThreeCenterTwoElectronSphShell,
 )
@@ -184,7 +185,9 @@ def integral_gen_for_L(
     # Generate actual list of integral expressions.
     expect_nexprs = len(list(shell_iter(Ls)))
     exprs = int_func(*Ls)
-    contr_coeff_prod = functools.reduce(lambda di, dj: di * dj, contr_coeffs[:2], 1)
+    contr_coeff_prod = functools.reduce(
+        lambda di, dj: di * dj, contr_coeffs[: len(Ls)], 1
+    )
     exprs = [contr_coeff_prod * expr for expr in exprs]
     print("\t... Multiplied contraction coefficients")
     nexprs = len(exprs)
@@ -360,8 +363,8 @@ def run():
     # Cartesian GTO #
     #################
 
-    def cart_gto():
-        def cart_gto_doc_func(L_tot):
+    def gto():
+        def gto_doc_func(L_tot):
             (La_tot,) = L_tot
             shell_a = L_MAP[La_tot]
             return (
@@ -370,17 +373,18 @@ def run():
             )
 
         # This code can evaluate multiple points at a time
-        cart_gto_Ls = integral_gen(
+        gto_Ls = integral_gen(
             lambda La_tot: CartGTOShell(La_tot, ax, Xa, Ya, Za),
             (l_max,),
             (ax,),
-            "cart_gto",
+            "gto",
         )
+        name = ("sph" if sph else "cart") + "_gto3d"
         write_render(
-            cart_gto_Ls,
+            gto_Ls,
             (ax, da, Xa, Ya, Za),
-            "cart_gto3d",
-            cart_gto_doc_func,
+            name,
+            gto_doc_func,
             out_dir,
             c=False,
         )
@@ -627,6 +631,46 @@ def run():
         )
         print()
 
+    ###############################################
+    # Two-center two-electron repulsion integrals #
+    ###############################################
+
+    def _2center2electron():
+        def _2center2el_doc_func(L_tots):
+            La_tot, Lb_tot = L_tots
+            shell_a = L_MAP[La_tot]
+            shell_b = L_MAP[Lb_tot]
+            return (
+                f"{INT_KIND} ({shell_a}|{shell_b}) "
+                "two-center two-electron repulsion integral."
+            )
+
+        _2center2el_ints_Ls = integral_gen(
+            lambda La_tot, Lb_tot: TwoCenterTwoElectronShell(
+                La_tot,
+                Lb_tot,
+                ax,
+                bx,
+                center_A,
+                center_B,
+            ),
+            (l_aux_max, l_aux_max),
+            (ax, bx),
+            "_2center2el3d",
+            (A_map, B_map),
+        )
+
+        write_render(
+            _2center2el_ints_Ls,
+            (ax, da, A, bx, db, B),
+            "_2center2el3d",
+            _2center2el_doc_func,
+            out_dir,
+            c=False,
+            py_kwargs={"add_imports": boys_import},
+        )
+        print()
+
     #################################################
     # Three-center two-electron repulsion integrals #
     #################################################
@@ -744,14 +788,15 @@ def run():
         print()
 
     funcs = {
-        "cgto": cart_gto,  # Cartesian Gaussian-type-orbital for density evaluation
+        "gto": gto,  # Cartesian Gaussian-type-orbital for density evaluation
         "ovlp": overlap,  # Overlap integrals
         "dpm": dipole,  # Linear moment (dipole) integrals
         "dqpm": diag_quadrupole,  # Diagonal part of the quadrupole tensor
         "qpm": quadrupole,  # Quadratic moment (quadrupole) integrals
         "kin": kinetic,  # Kinetic energy integrals
         "coul": coulomb,  # 1-electron Coulomb integrals
-        # "3c2e": _3center2electron,  # 3-center-2-electron integrals for density fitting (DF)
+        "2c2e": _2center2electron,  # 2-center-2-electron integrals for density fitting (DF)
+        # "3c2e": _3center2electron,  # 3-center-2-electron integrals for DF
         "3c2e_sph": _3center2electron_sph,  # Spherical 3-center-2-electron integrals for DF
         # "4covlp": fourcenter_overlap,  # Four center overlap integral
     }
