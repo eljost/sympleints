@@ -1,14 +1,23 @@
 import functools
 
 import numpy as np
-from sympy import exp, Function, pi, sqrt
+from sympy import exp, Function, pi, sqrt, IndexedBase
 
 from sympleints import shell_iter
 from sympleints.defs import TwoCenter1d
 
 # Placeholder for the Boys-function. The actual Boys-function will be
 # imported in the generated python module.
-boys = Function("boys")
+boys_func = Function("boys")
+boys_arr = IndexedBase("boys")
+
+
+def boys(N, x, return_arr=False):
+    """Using an array would require also a change of the function args!"""
+    if return_arr:
+        return boys_arr[N]
+    else:
+        return boys_func(N, x)
 
 
 class Coulomb(TwoCenter1d):
