@@ -145,9 +145,11 @@ def make_func_dict(name, func_map):
     return rendered
 
 
-def render_py_module(funcs, add_imports, L_max, comment):
+def render_py_module(funcs, add_imports, L_max, comment, header=""):
+    if header != "":
+        header = f'"""\n{header}\n"""\n\n'
     tpl = Template(
-        "{{ comment }}\n\nimport numpy\n\n{{ add_imports }}\n\n"
+        "{{ header }}{{ comment }}\n\nimport numpy\n\n{{ add_imports }}\n\n"
         "_L_MAX = {{ L_max }}\n\n{{ funcs }}",
         trim_blocks=True,
         lstrip_blocks=True,
@@ -158,6 +160,7 @@ def render_py_module(funcs, add_imports, L_max, comment):
     if add_imports:
         add_imports_str += "\n\n"
     rendered = tpl.render(
+        header=header,
         comment=comment,
         add_imports=add_imports_str,
         L_max=L_max,
@@ -528,6 +531,7 @@ def write_render(
     doc_func,
     out_dir,
     comment="",
+    header="",
     py_kwargs=None,
     c=True,
     f=True,
@@ -566,7 +570,7 @@ def write_render(
         py_func_dict,
     ]
     # Pure python/numpy
-    np_rendered = render_py_module(py_funcs, py_imports, L_max, comment)
+    np_rendered = render_py_module(py_funcs, py_imports, L_max, comment, header=header)
     write_file(out_dir, f"{name}.py", np_rendered)
 
     """
@@ -613,3 +617,7 @@ def write_render(
         ] + f_funcs
         f_rendered = render_f_module(f_funcs, name, comment="")
         write_file(out_dir, f"{name}.f90", f_rendered)
+
+
+def get_write_render(out_dir, header=""):
+    return functools.partial(write_render, out_dir=out_dir, header=header)
