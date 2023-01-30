@@ -332,7 +332,8 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
             [random.choice(string.ascii_letters) for i in range(8)]
         )
     args_str = ", ".join(args)
-    exp_args = [arg for arg in args if arg.islower()]
+    exp_args = [arg for arg in args if arg.islower() and arg.endswith("x")]
+    coeff_args = [arg for arg in args if arg.islower() and arg.startswith("d")]
     center_args = [arg for arg in args if arg.isupper()]
     # This allows using the 'boys' function without producing an error
     print_settings = {
@@ -365,6 +366,9 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
         {% for arg in exp_args %}
         real({{ kind }}), intent(in) :: {{ arg }}  ! Primitive exponent
         {% endfor %}
+        {% for arg in coeff_args %}
+        real({{ kind }}), intent(in) :: {{ arg }}  ! Contraction coefficient
+        {% endfor %}
         {% for arg in center_args %}
         real({{ kind  }}), intent(in), dimension(3) :: {{ arg }}  ! Center
         {% endfor %}
@@ -393,6 +397,7 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
         tpl.render(
             name=name,
             exp_args=exp_args,
+            coeff_args=coeff_args,
             center_args=center_args,
             res_name=res_name,
             res_dims=res_dims,
@@ -415,7 +420,8 @@ def make_f_func(repls, reduced, shape, shape_iter, args=None, name=None, doc_str
 def make_f_dispatch_func(name, args, func_map, L_num, sph):
     Ls = [f"L{ind}" for _, ind in zip(range(L_num), ("a", "b", "c", "d"))]
     exponents = ("ax", "bx", "cx", "dx")[:L_num]
-    centers = ("A", "B", "C", "D")
+    coeffs = ("da", "db", "dc", "dd")[:L_num]
+    centers = ("A", "B", "C", "D")[:L_num]
     Ls_str = ", ".join(Ls)
     args_str = ", ".join([str(arg) for arg in args])
     res_name = "res"
@@ -440,6 +446,7 @@ def make_f_dispatch_func(name, args, func_map, L_num, sph):
     function {{ name }}({{ Ls_str }}, {{ args_str }}) result({{ res_name }})
         integer, intent(in) :: {{ Ls_str }}
         real(kind=real64), intent(in) :: {{ exponents|join(", ") }}
+        real(kind=real64), intent(in) :: {{ coeffs|join(", ") }}
         real(kind=real64), intent(in), dimension(3) :: {{ centers|join(", ") }}
         real(kind=real64), dimension({{ res_dim }}) :: res
 
@@ -466,6 +473,7 @@ def make_f_dispatch_func(name, args, func_map, L_num, sph):
             comps_funcs=comps_funcs,
             Ls_str=Ls_str,
             exponents=exponents,
+            coeffs=coeffs,
             centers=centers,
             res_dim=res_dim,
             args_str=args_str,
