@@ -364,7 +364,8 @@ def run():
     center_B = get_center("B")
     center_C = get_center("C")
     center_D = get_center("D")
-    # center_R = get_center("R")  TODO: refactor code to use R as multipole origin
+    # Multipole origin or nuclear position
+    center_R = get_center("R")
     Xa, Ya, Za = symbols("Xa Ya Za")
 
     # Orbital exponents ax, bx, cx, dx.
@@ -381,6 +382,7 @@ def run():
     B, B_map = get_map("B", center_B)
     C, C_map = get_map("C", center_C)
     D, D_map = get_map("D", center_D)
+    R, R_map = get_map("R", center_R)
 
     boys_import = ("from pysisyphus.wavefunction.ints.boys import boys",)
 
@@ -459,7 +461,7 @@ def run():
             shell_b = L_MAP[Lb_tot]
             return (
                 f"{INT_KIND} 3D ({shell_a}{shell_b}) dipole moment integrals.\n"
-                "The origin is at C."
+                "The origin is at R."
             )
 
         dipole_comment = """
@@ -486,16 +488,16 @@ def run():
                 A,
                 B,
                 1,
-                C,
+                R,
             ),
             (l_max, l_max),
             (ax, bx),
             "dipole moment",
-            (A_map, B_map, C_map),
+            (A_map, B_map, R_map),
         )
         write_render(
             dipole_ints_Ls,
-            (ax, da, A, bx, db, B, C),
+            (ax, da, A, bx, db, B, R),
             "dipole3d",
             dipole_doc_func,
             comment=dipole_comment,
@@ -514,7 +516,7 @@ def run():
             shell_b = L_MAP[Lb_tot]
             return (
                 f"{INT_KIND} 3D ({shell_a}{shell_b}) quadrupole moment integrals\n"
-                "for operators x², y² and z². The origin is at C."
+                "for operators x², y² and z². The origin is at R."
             )
 
         diag_quadrupole_comment = """
@@ -528,16 +530,16 @@ def run():
 
         diag_quadrupole_ints_Ls = integral_gen(
             lambda La_tot, Lb_tot: gen_diag_quadrupole_shell(
-                La_tot, Lb_tot, ax, bx, center_A, center_B, center_C
+                La_tot, Lb_tot, ax, bx, center_A, center_B, center_R
             ),
             (l_max, l_max),
             (ax, bx),
             "diag quadrupole moment",
-            (A_map, B_map, C_map),
+            (A_map, B_map, R_map),
         )
         write_render(
             diag_quadrupole_ints_Ls,
-            (ax, da, A, bx, db, B, C),
+            (ax, da, A, bx, db, B, R),
             "diag_quadrupole3d",
             diag_quadrupole_doc_func,
             comment=diag_quadrupole_comment,
@@ -556,7 +558,7 @@ def run():
             shell_b = L_MAP[Lb_tot]
             return (
                 f"{INT_KIND} 3D ({shell_a}{shell_b}) quadrupole moment integrals.\n"
-                "The origin is at C."
+                "The origin is at R."
             )
 
         quadrupole_comment = r"""
@@ -578,17 +580,17 @@ def run():
                 center_A,
                 center_B,
                 2,
-                center_C,
+                center_R,
             ),
             (l_max, l_max),
             (ax, bx),
             "quadrupole moment",
-            (A_map, B_map, C_map),
+            (A_map, B_map, R_map),
         )
 
         write_render(
             quadrupole_ints_Ls,
-            (ax, da, A, bx, db, B, C),
+            (ax, da, A, bx, db, B, R),
             "quadrupole3d",
             quadrupole_doc_func,
             comment=quadrupole_comment,
@@ -638,17 +640,17 @@ def run():
 
         coulomb_ints_Ls = integral_gen(
             lambda La_tot, Lb_tot: CoulombShell(
-                La_tot, Lb_tot, ax, bx, center_A, center_B, center_C
+                La_tot, Lb_tot, ax, bx, center_A, center_B, center_R
             ),
             (l_max, l_max),
             (ax, bx),
             "coulomb3d",
-            (A_map, B_map, C_map),
+            (A_map, B_map, R_map),
         )
 
         write_render(
             coulomb_ints_Ls,
-            (ax, da, A, bx, db, B, C),
+            (ax, da, A, bx, db, B, R),
             "coulomb3d",
             coulomb_doc_func,
             c=False,

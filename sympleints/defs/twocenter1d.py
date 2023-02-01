@@ -2,12 +2,12 @@ from sympy import exp
 
 
 class TwoCenter1d:
-    def __init__(self, ax, A, bx, B, C=None):
+    def __init__(self, ax, A, bx, B, R=None):
         self.ax = ax
         self.A = A
         self.bx = bx
         self.B = B
-        self.C = C
+        self.R = R
 
     @property
     def p(self):
@@ -40,9 +40,9 @@ class TwoCenter1d:
         return self.P - self.B
 
     @property
-    def PC(self):
-        """Relative coordinate/Gaussian separation X_PC."""
-        return self.P - self.C
+    def PR(self):
+        """Relative coordinate/Gaussian separation X_PR."""
+        return self.P - self.R
 
     @property
     def K(self):

@@ -10,7 +10,7 @@ class Multipole1d(TwoCenter1d):
     """1d multipole-moment integral of order 'e', between primitive 1d Gaussians
     Ga = G_i(a, r, A) and Gb = G_j(b, r, B) with Cartesian quantum number i and j,
     exponents a and b, centered at A (B). The origin of the multipole expansion is
-    at C.
+    at R.
     """
 
     @functools.cache
@@ -36,27 +36,27 @@ class Multipole1d(TwoCenter1d):
         elif j > 0:
             return vrr(i, j - 1, e, self.PB)
         elif e > 0:
-            return vrr(i, j, e - 1, self.PC)
+            return vrr(i, j, e - 1, self.PR)
 
 
-def gen_multipole_3d(La, Lb, a, b, A, B, Le, C):
+def gen_multipole_3d(La, Lb, a, b, A, B, Le, R):
     x, y, z = [
-        Multipole1d(a, A[i], b, B[i], C[i])(La[i], Lb[i], Le[i]) for i in range(3)
+        Multipole1d(a, A[i], b, B[i], R[i])(La[i], Lb[i], Le[i]) for i in range(3)
     ]
     return x * y * z
 
 
-def gen_multipole_shell(La_tot, Lb_tot, a, b, A, B, Le_tot=0, C=(0.0, 0.0, 0.0)):
+def gen_multipole_shell(La_tot, Lb_tot, a, b, A, B, Le_tot=0, R=(0.0, 0.0, 0.0)):
     exprs = [
-        gen_multipole_3d(La, Lb, a, b, A, B, Le, C)
+        gen_multipole_3d(La, Lb, a, b, A, B, Le, R)
         for Le, La, Lb in shell_iter((Le_tot, La_tot, Lb_tot))
     ]
     return exprs
 
 
-def gen_diag_quadrupole_shell(La_tot, Lb_tot, a, b, A, B, C=(0.0, 0.0, 0.0)):
+def gen_diag_quadrupole_shell(La_tot, Lb_tot, a, b, A, B, R=(0.0, 0.0, 0.0)):
     exprs = list()
     for Le in ((2, 0, 0), (0, 2, 0), (0, 0, 2)):
         for La, Lb in shell_iter((La_tot, Lb_tot)):
-            exprs.append(gen_multipole_3d(La, Lb, a, b, A, B, Le, C))
+            exprs.append(gen_multipole_3d(La, Lb, a, b, A, B, Le, R))
     return exprs

@@ -21,7 +21,7 @@ def boys(N, x, return_arr=False):
 
 
 class Coulomb(TwoCenter1d):
-    """Nucleus at C."""
+    """Nucleus at R."""
 
     @functools.cache
     def eval(self, i, k, m, j, l, n, N):
@@ -31,7 +31,7 @@ class Coulomb(TwoCenter1d):
 
         def recur(N, *inds):
             """Simple wrapper to pass all required arguments."""
-            return self.eval(*inds, N)  # , a, b, A, B, C)
+            return self.eval(*inds, N)
 
         def decr(to_decr, decr_ind):
             one = np.zeros(3, dtype=int)
@@ -55,7 +55,7 @@ class Coulomb(TwoCenter1d):
 
             return (
                 X[decr_ind] * recur(N, *bra, *ket)
-                - self.PC[decr_ind] * recur(N + 1, *bra, *ket)
+                - self.PR[decr_ind] * recur(N + 1, *bra, *ket)
                 + 1
                 / (2 * self.p)
                 * Ni(bra)
@@ -69,7 +69,7 @@ class Coulomb(TwoCenter1d):
         # Base case
         if all([am == 0 for am in ang_moms]):
             K = exp(-self.mu * self.AB.dot(self.AB))
-            return 2 * pi / self.p * K * boys(N, self.p * self.PC.dot(self.PC))
+            return 2 * pi / self.p * K * boys(N, self.p * self.PR.dot(self.PR))
         elif i > 0:
             return decr("bra", 0)
         elif j > 0:
@@ -86,10 +86,9 @@ class Coulomb(TwoCenter1d):
 
 class CoulombShell(Function):
     @classmethod
-    def eval(cls, La_tot, Lb_tot, a, b, A, B, C=(0.0, 0.0, 0.0)):
+    def eval(cls, La_tot, Lb_tot, a, b, A, B, R=(0.0, 0.0, 0.0)):
         exprs = [
-            # Coulomb(*La, *Lb, 0, a, b, A, B, C)
-            Coulomb(a, A, b, B, C).eval(*La, *Lb, 0)
+            Coulomb(a, A, b, B, R).eval(*La, *Lb, 0)
             for La, Lb in shell_iter((La_tot, Lb_tot))
         ]
         # print(Coulomb.eval.cache_info())
