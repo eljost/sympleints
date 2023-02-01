@@ -86,6 +86,4 @@ Generation of the 3-center-2-electron integrals up to the g and h-function is sl
 
 I did not yet test, if Python 3.11 yields any performance benefits.
 
-C code generation is currently broken, but the Fortran-code works.
-
 Right now, code for all possible combinations of angular moment is generated even though one combination for each pair/triple of angular momenta would be enough. Having an (sp)-overlap integral should be enough to also evaluate an (ps)-overlap integral.

@@ -1,4 +1,5 @@
 import itertools as it
+from typing import Optional
 
 
 def canonical_order(L):
@@ -24,7 +25,14 @@ def shell_shape(Ls, cartesian=True):
     return tuple(map(size, Ls))
 
 
-def shell_shape_iter(Ls, **kwargs):
+def shell_shape_iter(Ls, ncomponents: int = 0, start_at: int = 0, **kwargs):
     shape = shell_shape(Ls, **kwargs)
-    ranges = [range(s) for s in shape]
-    return it.product(*ranges)
+    if ncomponents > 0:
+        shape = (ncomponents, *shape)
+    ranges = [range(start_at, s + start_at) for s in shape]
+    iter_ = it.product(*ranges)
+    return iter_
+
+
+def func_name_from_Ls(name, Ls):
+    return name + "_" + "".join(str(l) for l in Ls)

@@ -69,7 +69,10 @@ from sympleints.defs.gto import CartGTOShell
 from sympleints.defs.kinetic import gen_kinetic_shell
 from sympleints.defs.multipole import gen_diag_quadrupole_shell, gen_multipole_shell
 from sympleints.defs.overlap import gen_overlap_shell
-from sympleints.render import get_write_render
+from sympleints.FortranRenderer import FortranRenderer
+from sympleints.Functions import Functions
+from sympleints.PythonRenderer import PythonRenderer
+from sympleints.render_v2 import get_write_render
 
 try:
     from pysisyphus.wavefunction.cart2sph import cart2sph_coeffs
@@ -194,7 +197,7 @@ def integral_gen_for_L(
         lambda di, dj: di * dj, contr_coeffs[: len(Ls)], 1
     )
     exprs = [contr_coeff_prod * expr for expr in exprs]
-    print("\t... Multiplied contraction coefficients")
+    print("\t... multiplied contraction coefficients")
     nexprs = len(exprs)
     assert len(exprs) % expect_nexprs == 0
     components = nexprs // expect_nexprs
@@ -246,7 +249,7 @@ def integral_gen_for_L(
     dur = datetime.now() - start
     print(f"\t... finished in {str(dur)} h")
     sys.stdout.flush()
-    return (repls, reduced), Ls
+    return Ls, (repls, reduced)
 
 
 def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False):
@@ -386,12 +389,15 @@ def run():
 
     boys_import = ("from pysisyphus.wavefunction.ints.boys import boys",)
 
+    # function_getter = get_functions_getter()
     integral_gen = integral_gen_getter(
         contr_coeffs=contr_coeffs,
         sph=sph,
         norm_pgto=norm_pgto,
     )
     write_render = get_write_render(out_dir=out_dir, header=header)
+    py_renderer = PythonRenderer()
+    f_renderer = FortranRenderer()
 
     #################
     # Cartesian GTO #
@@ -434,20 +440,32 @@ def run():
             shell_b = L_MAP[Lb_tot]
             return f"{INT_KIND} 3D ({shell_a}{shell_b}) overlap integral."
 
-        ovlp_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: gen_overlap_shell(La_tot, Lb_tot, ax, bx, A, B),
             (l_max, l_max),
             (ax, bx),
-            "overlap",
+            "ovlp3d",
             (A_map, B_map),
         )
-        write_render(
-            ovlp_ints_Ls,
-            (ax, da, A, bx, db, B),
-            "ovlp3d",
-            ovlp_doc_func,
-            c=True,
+        ls_exprs = list(ls_exprs)  # Realize expressions
+        ovlp_funcs = Functions(
+            name="ovlp3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            doc_func=ovlp_doc_func,
+            header=header,
         )
+        with open(out_dir / "ovlp3d.py", "w") as handle:
+            handle.write(py_renderer.render(ovlp_funcs))
+        with open(out_dir / "ovlp3d.f90", "w") as handle:
+            handle.write(f_renderer.render(ovlp_funcs))
+        # _ = py_renderer.render(ovlp_funcs)
+        import sys
+
+        sys.exit()
         print()
 
     ###########################
