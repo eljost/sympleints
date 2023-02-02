@@ -12,11 +12,10 @@ class Functions:
     exponents: List[Symbol]
     centers: List[Symbol]
     ls_exprs: List
-    doc_func: Optional[Callable]
-    add_imports: Optional[List[str]] = None
-    comment: str = ""
     header: str = ""
-    add_args: Optional[List] = None
+    doc_func: Optional[Callable] = None
+    comment: str = ""
+    boys: bool = False
     ncomponents: int = 0
     ref_center: Optional[Symbol] = None
     full_name: Optional["str"] = None
@@ -26,14 +25,10 @@ class Functions:
         assert self.l_max >= 0
         assert len(self.coeffs) == len(self.exponents) == len(self.centers)
 
+        self.ls_exprs = list(self.ls_exprs)
+
         if self.full_name is None:
             self.full_name = self.name
-
-        if self.add_args is None:
-            self.add_args = list()
-
-        if self.add_imports is None:
-            self.add_imports = list()
 
     @property
     def Ls(self):
@@ -46,8 +41,6 @@ class Functions:
             args.extend([str(exponent), str(coeff), str(center)])
         if self.ref_center is not None:
             args.extend([str(self.ref_center)])
-
-        args += [str(arg) for arg in self.add_args]
         return args
 
     @property

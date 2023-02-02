@@ -104,6 +104,9 @@ class PythonRenderer(Renderer):
             {{ comment }}
 
             import numpy
+            {% if boys %}
+            from pysisyphus.wavefunction.ints.boys import boys
+            {% endif %}
 
             {% for ai in add_imports  %}
             {{ ai }}
@@ -122,7 +125,7 @@ class PythonRenderer(Renderer):
         rendered = tpl.render(
             header=functions.header,
             comment=functions.comment,
-            add_imports=functions.add_imports,
+            boys=functions.boys,
             funcs=rendered_funcs,
             func_dict=func_dict,
         )
@@ -134,7 +137,7 @@ class PythonRenderer(Renderer):
                 rendered = black.format_str(
                     rendered, mode=black.FileMode(line_length=90)
                 )
-                print("\t ... formatted with black")
+                print("\t ... formatted Python code with black")
             except black.parsing.InvalidInput:
                 print("Error while parsing with black. Dumping nontheless.")
         except ModuleNotFoundError:

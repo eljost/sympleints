@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 import textwrap
 
@@ -11,6 +12,18 @@ from sympleints.helpers import shell_shape_iter
 
 
 class FCodePrinterMod(FCodePrinter):
+    boys_re = re.compile("boys\(([d\d\.]+),(.+)")
+
+    def _print_Function(self, expr):
+        func = super()._print_Function(expr)
+        if func.startswith("boys"):
+            mobj = self.boys_re.match(func)
+            as_float = float(mobj.group(1).lower().replace("d", "e"))
+            as_int = int(as_float)
+            remainder = mobj.group(2)
+            func = f"boys({as_int},{remainder}"
+        return func
+
     def _print_Indexed(self, expr):
         # prints I[0] as I[1], i.e., increments the index by one.
         inds = [self._print(i + 1) for i in expr.indices]
@@ -310,7 +323,7 @@ class FortranRenderer(Renderer):
                 with open(fp.name) as handle:
                     rendered = handle.read()
                 os.remove(fp.name)
-                print("\t ... formatted with fprettify")
+                print("\t ... formatted Fortran code with fprettify")
             except fprettify.FprettifyException as err:
                 print("Error while running fprettify. Dumping nontheless.")
                 rendered = rendered_backup

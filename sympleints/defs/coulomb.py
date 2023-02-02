@@ -69,7 +69,7 @@ class Coulomb(TwoCenter1d):
         # Base case
         if all([am == 0 for am in ang_moms]):
             K = exp(-self.mu * self.AB.dot(self.AB))
-            return 2 * pi / self.p * K * boys(N, self.p * self.PR.dot(self.PR))
+            return 2 * pi / self.p * K * boys(int(N), self.p * self.PR.dot(self.PR))
         elif i > 0:
             return decr("bra", 0)
         elif j > 0:

@@ -47,8 +47,11 @@ class Renderer(abc.ABC):
             shape_iter = self.shell_shape_iter(
                 L_tots, ncomponents=ncomponents, cartesian=True
             )
-            doc_str = functions.doc_func(L_tots)
-            doc_str += "\n\nGenerated code; DO NOT modify by hand!"
+            try:
+                doc_str = functions.doc_func(L_tots) + "\n\n"
+            except AttributeError:
+                doc_str = ""
+            doc_str += "Generated code; DO NOT modify by hand!"
             name = func_name_from_Ls(functions.name, L_tots)
             # func_map.append((L_tots, name))
             print(f"Rendering '{name}' ... ", end="")

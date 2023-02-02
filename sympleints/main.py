@@ -25,7 +25,6 @@
 
 
 import argparse
-import warnings
 
 from datetime import datetime
 import functools
@@ -66,9 +65,10 @@ from sympleints.defs.coulomb import (
 )
 from sympleints import canonical_order, shell_iter
 from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
+
 # from sympleints.defs.gto import CartGTOShell
 # from sympleints.defs.gto import CartGTOv2Shell as CartGTOShell
-from sympleints.defs.gto import gen_gto3d_shell#CartGTOv2Shell as CartGTOShell
+from sympleints.defs.gto import gen_gto3d_shell  # CartGTOv2Shell as CartGTOShell
 from sympleints.defs.kinetic import gen_kinetic_shell
 from sympleints.defs.multipole import gen_diag_quadrupole_shell, gen_multipole_shell
 from sympleints.defs.overlap import gen_overlap_shell
@@ -406,20 +406,20 @@ def run():
     def render_write(funcs):
         fns = [renderer.render_write(funcs, out_dir) for renderer in renderers]
         return fns
-            # renderer.render_write(funcs, out_dir)
-            # fns.
+        # renderer.render_write(funcs, out_dir)
+        # fns.
         # [renderer.write(gto_funcs, out_dir) for renderer in ]
         # with open(out_dir / "gto3d.py", "w") as handle:
-            # handle.write(py_renderer.render(gto_funcs))
+        # handle.write(py_renderer.render(gto_funcs))
         # with open(out_dir / "gto3d.f90", "w") as handle:
-            # handle.write(f_renderer.render(gto_funcs))
+        # handle.write(f_renderer.render(gto_funcs))
 
     #################
     # Cartesian GTO #
     #################
 
     def gto():
-        def gto_doc_func(L_tot):
+        def doc_func(L_tot):
             (La_tot,) = L_tot
             shell_a = L_MAP[La_tot]
             return (
@@ -436,29 +436,25 @@ def run():
         )
         name = ("sph" if sph else "cart") + "_gto3d"
 
-        warnings.warn("GTO center is not taken into account; see docstring!")
-        ls_exprs = list(ls_exprs)  # Realize expressions
         gto_funcs = Functions(
             name=name,
             l_max=l_max,
-            coeffs=[da, ],
-            exponents=[ax,],
-            centers=[A,],
+            coeffs=[da],
+            exponents=[ax],
+            centers=[A],
             ref_center=R,
             ls_exprs=ls_exprs,
-            doc_func=gto_doc_func,
+            doc_func=doc_func,
             header=header,
         )
         render_write(gto_funcs)
-
-        print()
 
     #####################
     # Overlap integrals #
     #####################
 
     def overlap():
-        def ovlp_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
@@ -471,7 +467,6 @@ def run():
             "ovlp3d",
             (A_map, B_map),
         )
-        ls_exprs = list(ls_exprs)  # Realize expressions
         ovlp_funcs = Functions(
             name="ovlp3d",
             l_max=l_max,
@@ -479,25 +474,17 @@ def run():
             exponents=[ax, bx],
             centers=[A, B],
             ls_exprs=ls_exprs,
-            doc_func=ovlp_doc_func,
+            doc_func=doc_func,
             header=header,
         )
-        with open(out_dir / "ovlp3d.py", "w") as handle:
-            handle.write(py_renderer.render(ovlp_funcs))
-        with open(out_dir / "ovlp3d.f90", "w") as handle:
-            handle.write(f_renderer.render(ovlp_funcs))
-        # _ = py_renderer.render(ovlp_funcs)
-        import sys
-
-        sys.exit()
-        print()
+        render_write(ovlp_funcs)
 
     ###########################
     # Dipole moment integrals #
     ###########################
 
     def dipole():
-        def dipole_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
@@ -520,39 +507,36 @@ def run():
             <s_a|z|s_b>
         """
 
-        dipole_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: gen_multipole_shell(
-                # Le_tot = 1
-                La_tot,
-                Lb_tot,
-                ax,
-                bx,
-                A,
-                B,
-                1,
-                R,
+                La_tot, Lb_tot, ax, bx, A, B, 1, R
             ),
             (l_max, l_max),
             (ax, bx),
             "dipole moment",
             (A_map, B_map, R_map),
         )
-        write_render(
-            dipole_ints_Ls,
-            (ax, da, A, bx, db, B, R),
-            "dipole3d",
-            dipole_doc_func,
-            comment=dipole_comment,
-            c=True,
+
+        dipole_funcs = Functions(
+            name="dipole3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            doc_func=doc_func,
+            ncomponents=3,
+            ref_center=R,
+            header=header,
         )
-        print()
+        render_write(dipole_funcs)
 
     ###########################################
     # Diagonal of quadrupole moment integrals #
     ###########################################
 
     def diag_quadrupole():
-        def diag_quadrupole_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
@@ -570,7 +554,7 @@ def run():
                         quadrupole_integrals(bf_a, bf_b, rr)
         """
 
-        diag_quadrupole_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: gen_diag_quadrupole_shell(
                 La_tot, Lb_tot, ax, bx, center_A, center_B, center_R
             ),
@@ -579,22 +563,27 @@ def run():
             "diag quadrupole moment",
             (A_map, B_map, R_map),
         )
-        write_render(
-            diag_quadrupole_ints_Ls,
-            (ax, da, A, bx, db, B, R),
-            "diag_quadrupole3d",
-            diag_quadrupole_doc_func,
-            comment=diag_quadrupole_comment,
-            c=True,
+
+        diag_quadrupole_funcs = Functions(
+            name="diag_quadrupole3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            doc_func=doc_func,
+            ncomponents=3,
+            ref_center=R,
+            header=header,
         )
-        print()
+        render_write(diag_quadrupole_funcs)
 
     ###############################
     # Quadrupole moment integrals #
     ###############################
 
     def quadrupole():
-        def quadrupole_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
@@ -612,7 +601,7 @@ def run():
         \       zz /
         """
 
-        quadrupole_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: gen_multipole_shell(
                 # Le_tot = 2
                 La_tot,
@@ -630,28 +619,32 @@ def run():
             (A_map, B_map, R_map),
         )
 
-        write_render(
-            quadrupole_ints_Ls,
-            (ax, da, A, bx, db, B, R),
-            "quadrupole3d",
-            quadrupole_doc_func,
-            comment=quadrupole_comment,
-            c=True,
+        quadrupole_funcs = Functions(
+            name="quadrupole3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            doc_func=doc_func,
+            ncomponents=6,
+            ref_center=R,
+            header=header,
         )
-        print()
+        render_write(quadrupole_funcs)
 
     ############################
     # Kinetic energy integrals #
     ############################
 
     def kinetic():
-        def kinetic_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return f"{INT_KIND} 3D ({shell_a}{shell_b}) kinetic energy integral."
 
-        kinetic_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: gen_kinetic_shell(
                 La_tot, Lb_tot, ax, bx, center_A, center_B
             ),
@@ -660,27 +653,31 @@ def run():
             "kinetic",
             (A_map, B_map),
         )
-        write_render(
-            kinetic_ints_Ls,
-            (ax, da, A, bx, db, B),
-            "kinetic3d",
-            kinetic_doc_func,
-            c=True,
+
+        kinetic_funcs = Functions(
+            name="kinetic3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            doc_func=doc_func,
+            header=header,
         )
-        print()
+        render_write(kinetic_funcs)
 
     #########################
     # 1el Coulomb Integrals #
     #########################
 
     def coulomb():
-        def coulomb_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return f"{INT_KIND} ({shell_a}{shell_b}) 1-electron Coulomb integral."
 
-        coulomb_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: CoulombShell(
                 La_tot, Lb_tot, ax, bx, center_A, center_B, center_R
             ),
@@ -689,16 +686,19 @@ def run():
             "coulomb3d",
             (A_map, B_map, R_map),
         )
-
-        write_render(
-            coulomb_ints_Ls,
-            (ax, da, A, bx, db, B, R),
-            "coulomb3d",
-            coulomb_doc_func,
-            c=False,
-            py_kwargs={"add_imports": boys_import},
+        coulomb_funcs = Functions(
+            name="coulomb3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ref_center=R,
+            ls_exprs=ls_exprs,
+            boys=True,
+            doc_func=doc_func,
+            header=header,
         )
-        print()
+        render_write(coulomb_funcs)
 
     ###############################################
     # Two-center two-electron repulsion integrals #
@@ -737,7 +737,6 @@ def run():
             c=False,
             py_kwargs={"add_imports": boys_import},
         )
-        print()
 
     #################################################
     # Three-center two-electron repulsion integrals #
@@ -771,7 +770,6 @@ def run():
             c=False,
             py_kwargs={"add_imports": boys_import},
         )
-        print()
 
     def _3center2electron_sph():
         def _3center2el_doc_func(L_tots):
@@ -810,7 +808,6 @@ def run():
             c=False,
             py_kwargs={"add_imports": boys_import},
         )
-        print()
 
     #################################
     # Four-center overlap integrals #
@@ -855,7 +852,6 @@ def run():
             doc_func,
             c=False,
         )
-        print()
 
     funcs = {
         "gto": gto,  # Cartesian Gaussian-type-orbital for density evaluation
@@ -872,14 +868,20 @@ def run():
     }
 
     # Generate all possible integrals, when no 'keys' were supplied
+    negate_keys = list()
     if len(keys) == 0:
         keys = funcs.keys()
+    elif any(negate_keys := [key[1:] for key in keys if "~" in key]):
+        keys = [key for key in funcs.keys() if key not in negate_keys]
+        # org_keys = funcs.keys()
+        # keys = [key for func]
 
+    for ngk in negate_keys:
+        print(f"Skipping generation of '{ngk}'.")
     start = datetime.now()
-
     for key in keys:
         funcs[key]()
-
+        print()
     duration = datetime.now() - start
     duration_hms = str(duration).split(".")[0]  # Only keep hh:mm:ss
     print(f"sympleint run took {duration_hms} h.")
