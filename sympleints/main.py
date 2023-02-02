@@ -25,6 +25,7 @@
 
 
 import argparse
+import warnings
 
 from datetime import datetime
 import functools
@@ -65,14 +66,15 @@ from sympleints.defs.coulomb import (
 )
 from sympleints import canonical_order, shell_iter
 from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
-from sympleints.defs.gto import CartGTOShell
+# from sympleints.defs.gto import CartGTOShell
+# from sympleints.defs.gto import CartGTOv2Shell as CartGTOShell
+from sympleints.defs.gto import gen_gto3d_shell#CartGTOv2Shell as CartGTOShell
 from sympleints.defs.kinetic import gen_kinetic_shell
 from sympleints.defs.multipole import gen_diag_quadrupole_shell, gen_multipole_shell
 from sympleints.defs.overlap import gen_overlap_shell
 from sympleints.FortranRenderer import FortranRenderer
 from sympleints.Functions import Functions
 from sympleints.PythonRenderer import PythonRenderer
-from sympleints.render_v2 import get_write_render
 
 try:
     from pysisyphus.wavefunction.cart2sph import cart2sph_coeffs
@@ -395,9 +397,22 @@ def run():
         sph=sph,
         norm_pgto=norm_pgto,
     )
-    write_render = get_write_render(out_dir=out_dir, header=header)
+    # write_render = get_write_render(out_dir=out_dir, header=header)
     py_renderer = PythonRenderer()
     f_renderer = FortranRenderer()
+
+    renderers = [py_renderer, f_renderer]
+
+    def render_write(funcs):
+        fns = [renderer.render_write(funcs, out_dir) for renderer in renderers]
+        return fns
+            # renderer.render_write(funcs, out_dir)
+            # fns.
+        # [renderer.write(gto_funcs, out_dir) for renderer in ]
+        # with open(out_dir / "gto3d.py", "w") as handle:
+            # handle.write(py_renderer.render(gto_funcs))
+        # with open(out_dir / "gto3d.f90", "w") as handle:
+            # handle.write(f_renderer.render(gto_funcs))
 
     #################
     # Cartesian GTO #
@@ -408,25 +423,34 @@ def run():
             (La_tot,) = L_tot
             shell_a = L_MAP[La_tot]
             return (
-                f"3D {INT_KIND} {shell_a}-Gaussian shell.\n\n"
-                "Exponent a, centered at A, evaluated at (Xa, Ya, Za) + A."
+                f"3D {INT_KIND} {shell_a}-Gaussian shell.\n"
+                "Exponent ax, contraction coeff. da, centered at A, evaluated at R."
             )
 
         # This code can evaluate multiple points at a time
-        gto_Ls = integral_gen(
-            lambda La_tot: CartGTOShell(La_tot, ax, Xa, Ya, Za),
+        ls_exprs = integral_gen(
+            lambda La_tot: gen_gto3d_shell(La_tot, ax, A, R),
             (l_max,),
             (ax,),
             "gto",
         )
         name = ("sph" if sph else "cart") + "_gto3d"
-        write_render(
-            gto_Ls,
-            (ax, da, Xa, Ya, Za),
-            name,
-            gto_doc_func,
-            c=False,
+
+        warnings.warn("GTO center is not taken into account; see docstring!")
+        ls_exprs = list(ls_exprs)  # Realize expressions
+        gto_funcs = Functions(
+            name=name,
+            l_max=l_max,
+            coeffs=[da, ],
+            exponents=[ax,],
+            centers=[A,],
+            ref_center=R,
+            ls_exprs=ls_exprs,
+            doc_func=gto_doc_func,
+            header=header,
         )
+        render_write(gto_funcs)
+
         print()
 
     #####################

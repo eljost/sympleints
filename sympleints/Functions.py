@@ -36,6 +36,10 @@ class Functions:
             self.add_imports = list()
 
     @property
+    def Ls(self):
+        return ["La", "Lb", "Lc", "Ld"][:self.nbfs]
+
+    @property
     def args(self):
         args = list()
         for exponent, coeff, center in zip(self.exponents, self.coeffs, self.centers):

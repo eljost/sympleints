@@ -31,12 +31,21 @@ class FortranRenderer(Renderer):
         # Start indexing at 1, instead of 0.
         return shell_shape_iter(*args, start_at=1, **kwargs)
 
-    def get_argument_declaration(self, functions):
+    def get_argument_declaration(self, functions, contracted=False):
         tpl = Template(
             textwrap.dedent(
                 """
-            real({{ kind }}), intent(in) :: {{ exps|join(", ") }}  ! Primitive exponent(s)
-            real({{ kind }}), intent(in) :: {{ coeffs|join(", ") }}  ! Contraction coefficient(s)
+            {% for exp_ in exps %}
+            real({{ kind }}), intent(in) :: {{ exp_ }}{% if contracted %}(:){% endif %}  ! Primitive exponent(s)
+            {% endfor %}
+            {% if contracted %}
+            ! Contraction coefficient(s)
+            {% for exp_, coeff in zip(exps, coeffs) %}
+            real({{ kind }}), intent(in), dimension(size({{ exp_ }})) :: {{ coeff }}
+            {% endfor %}
+            {% else %}
+            real({{ kind }}), intent(in) :: {{ coeffs|join(", ") }}
+            {% endif %}
             real({{ kind }}), intent(in), dimension(3) :: {{ centers|join(", ") }}  ! Center(s)
             {% if ref_center %}
             real({{ kind }}), intent(in), dimension(3) :: {{ ref_center }}  ! Reference center
@@ -47,11 +56,15 @@ class FortranRenderer(Renderer):
             trim_blocks=True,
             lstrip_blocks=True,
         )
+        arg_dim = "(:)" if contracted else ""
         res_dim = ", ".join(":" for _ in range(functions.ndim))
         rendered = tpl.render(
             kind=self.real_kind,
             exps=functions.exponents,
+            contracted=contracted,
+            arg_dim=arg_dim,
             coeffs=functions.coeffs,
+            zip=zip,
             centers=functions.centers,
             ref_center=functions.ref_center,
             res_name=self.res_name,
@@ -132,6 +145,7 @@ class FortranRenderer(Renderer):
         F_INIT_TPL = Template(
             """
         subroutine {{ name }}_init ()
+        ! Initializer procedure. MUST be called before {{ name }} can be called.
         {% for func in funcs %}
             {{ func_array_name }}({{ func.Ls|join(", ") }})%f => {{ func.name }}
         {% endfor %}
@@ -152,14 +166,9 @@ class FortranRenderer(Renderer):
             textwrap.dedent(
                 """
         subroutine {{ name }}({{ L_args|join(", ") }}, {{ args|join(", ") }})
-            integer, intent(in) :: La, Lb
-            real(kind=real64), intent(in), dimension(:) :: ax
-            real(kind=real64), intent(in), dimension(:) :: bx
-            real(kind=real64), intent(in), dimension(size(ax)) :: da
-            real(kind=real64), intent(in), dimension(size(bx)) :: db
-            real(kind=real64), intent(in), dimension(3) :: A, B
-            real(kind=real64), intent(inout) :: res(:, :)
-            real(kind=real64), allocatable, dimension(:, :) :: res_tmp
+            integer, intent(in) :: {{ Ls|join(", ") }}
+            {{ arg_declaration }}
+            real(kind=real64), allocatable, dimension({{ res_dim }}) :: res_tmp
             ! Initializing with => null () adds an implicit save, which will mess
             ! everything up when running with OpenMP.
             procedure({{ name }}_proc), pointer :: fncpntr
@@ -183,6 +192,8 @@ class FortranRenderer(Renderer):
             lstrip_blocks=True,
         )
         args = functions.args + [self.res_name]
+        arg_declaration = self.get_argument_declaration(functions, contracted=True)
+        res_dim = ", ".join(":" for _ in range(functions.ndim))
 
         nbfs = functions.nbfs
         counters = ["i", "j", "k", "l"][:nbfs]
@@ -201,10 +212,15 @@ class FortranRenderer(Renderer):
         ):
             pntr_args.append(f"{exp_}({counter}), {coeff}({counter}), {center}")
         pntr_args = ", ".join(pntr_args)
+        if functions.ref_center:
+            pntr_args += f", {functions.ref_center}"
 
         rendered = tpl.render(
             name=functions.name,
+            arg_declaration=arg_declaration,
+            res_dim=res_dim,
             L_args=functions.L_args,
+            Ls=functions.Ls,
             loop_counter=counters,
             loops=loops,
             pntr_args=pntr_args,
@@ -235,7 +251,7 @@ class FortranRenderer(Renderer):
             use iso_fortran_env, only: real64
 
             implicit none
-            
+
             type fp
                 procedure({{ interface_name }}) ,pointer ,nopass :: f =>null()
             end type fp

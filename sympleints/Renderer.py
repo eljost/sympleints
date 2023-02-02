@@ -1,5 +1,6 @@
 import abc
 from dataclasses import dataclass
+from pathlib import Path
 import time
 from typing import Tuple
 
@@ -38,7 +39,6 @@ class Renderer(abc.ABC):
 
         args = functions.args
         ncomponents = functions.ncomponents
-        ext = self.ext
 
         rendered_funcs = list()
         # func_map = list()
@@ -51,7 +51,7 @@ class Renderer(abc.ABC):
             doc_str += "\n\nGenerated code; DO NOT modify by hand!"
             name = func_name_from_Ls(functions.name, L_tots)
             # func_map.append((L_tots, name))
-            print(f"Rendering '{name}{ext}' ... ", end="")
+            print(f"Rendering '{name}' ... ", end="")
             start = time.time()
             func = self.render_function(
                 functions,
@@ -80,3 +80,14 @@ class Renderer(abc.ABC):
         )
         #
         return module
+
+    def write(self, out_dir, name, text):
+        fn = (out_dir / name).with_suffix(self.ext)
+        with open(fn, "w") as handle:
+            handle.write(text)
+        return fn
+
+    def render_write(self, functions: Functions, out_dir: Path):
+        module = self.render(functions)
+        fn = self.write(out_dir, functions.name + self.ext, module)
+        return fn
