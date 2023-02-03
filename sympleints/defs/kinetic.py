@@ -30,25 +30,25 @@ class Kinetic1d(TwoCenter1d):
         if i == 0 and j == 0:
             return (
                 self.ax - 2 * self.ax**2 * (self.PA**2 + 1 / (2 * self.p))
-            ) * recur_ovlp(i, j)
+            ) * recur_ovlp(0, 0)
         # Decrement i
         elif i > 0:
             # Eq. (9.3.41)
             return recur_rel(i - 1, j, self.PA) + self.bx / self.p * (
-                2 * self.ax * recur_ovlp(i, j) - i * recur_ovlp(i - 2, j)
+                2 * self.ax * recur_ovlp(i, j) - (i-1) * recur_ovlp(i - 2, j)
             )
         # Decrement j
         elif j > 0:
             # Eq. (9.3.41)
             return recur_rel(i, j - 1, self.PB) + self.ax / self.p * (
-                2 * self.bx * recur_ovlp(i, j) - j * recur_ovlp(i, j - 2)
+                2 * self.bx * recur_ovlp(i, j) - (j-1) * recur_ovlp(i, j - 2)
             )
 
 
 def gen_kinetic_3d(La, Lb, a, b, A, B):
     Tx, Ty, Tz = [Kinetic1d(a, A[i], b, B[i])(La[i], Lb[i]) for i in range(3)]
     Sx, Sy, Sz = [Overlap1d(a, A[i], b, B[i])(La[i], Lb[i]) for i in range(3)]
-    return Tx * Sy * Sz + Sx * Ty * Sz + Sx * Sy * Tz
+    return (Tx * Sy * Sz) + (Sx * Ty * Sz) + (Sx * Sy * Tz)
 
 
 def gen_kinetic_shell(La_tot, Lb_tot, a, b, A, B):
