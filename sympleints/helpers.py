@@ -1,6 +1,8 @@
 import itertools as it
 from typing import Optional
 
+from sympy import IndexedBase, Matrix, Symbol
+
 
 def canonical_order(L):
     inds = list()
@@ -36,3 +38,14 @@ def shell_shape_iter(Ls, ncomponents: int = 0, start_at: int = 0, **kwargs):
 
 def func_name_from_Ls(name, Ls):
     return name + "_" + "".join(str(l) for l in Ls)
+
+
+def get_center(i):
+    symbs = [Symbol(str(i) + ind, real=True) for ind in ("x", "y", "z")]
+    return Matrix([*symbs]).T  # Return column vector
+
+
+def get_map(i, center_i):
+    array = IndexedBase(i, shape=3)
+    array_map = dict(zip(center_i, array))
+    return array, array_map

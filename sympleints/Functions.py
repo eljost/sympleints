@@ -3,6 +3,8 @@ from typing import Callable, List, Optional
 
 from sympy import Symbol
 
+from sympleints.symbols import R
+
 
 @dataclass
 class Functions:
@@ -17,7 +19,7 @@ class Functions:
     comment: str = ""
     boys: bool = False
     ncomponents: int = 0
-    ref_center: Optional[Symbol] = None
+    with_ref_center: bool = False
     full_name: Optional["str"] = None
     l_aux_max: Optional[int] = None
 
@@ -32,20 +34,35 @@ class Functions:
 
     @property
     def Ls(self):
-        return ["La", "Lb", "Lc", "Ld"][:self.nbfs]
+        return ["La", "Lb", "Lc", "Ld"][: self.nbfs]
 
-    @property
-    def args(self):
+    def get_args(self, ref_center=False):
         args = list()
         for exponent, coeff, center in zip(self.exponents, self.coeffs, self.centers):
             args.extend([str(exponent), str(coeff), str(center)])
-        if self.ref_center is not None:
-            args.extend([str(self.ref_center)])
         return args
 
     @property
+    def prim_args(self):
+        args = list()
+        for exponent, coeff, center in zip(self.exponents, self.coeffs, self.centers):
+            args.extend([str(exponent), str(coeff), str(center)])
+        return args
+
+    @property
+    def full_args(self):
+        args = self.prim_args
+        if self.with_ref_center:
+            args += [self.ref_center]
+        return args
+
+    @property
+    def ref_center(self):
+        return R
+
+    @property
     def L_args(self):
-        return ["La", "Lb", "Lc", "Ld"][:self.nbfs]
+        return ["La", "Lb", "Lc", "Ld"][: self.nbfs]
 
     @property
     def ls(self):

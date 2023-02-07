@@ -63,8 +63,9 @@ from sympleints.defs.coulomb import (
     ThreeCenterTwoElectronShell,
     ThreeCenterTwoElectronSphShell,
 )
-from sympleints import canonical_order, shell_iter
+from sympleints import canonical_order, get_center, get_map, shell_iter
 from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
+from sympleints.symbols import center_R, R, R_map
 
 # from sympleints.defs.gto import CartGTOShell
 # from sympleints.defs.gto import CartGTOv2Shell as CartGTOShell
@@ -94,17 +95,6 @@ KEYS = (
     "3c2e_sph",
 )
 ONE_THRESH = 1e-14
-
-
-def get_center(i):
-    symbs = [Symbol(str(i) + ind, real=True) for ind in ("x", "y", "z")]
-    return Matrix([*symbs]).T  # Return column vector
-
-
-def get_map(i, center_i):
-    array = IndexedBase(i, shape=3)
-    array_map = dict(zip(center_i, array))
-    return array, array_map
 
 
 def cart2spherical(L_tots, exprs):
@@ -370,7 +360,7 @@ def run():
     center_C = get_center("C")
     center_D = get_center("D")
     # Multipole origin or nuclear position
-    center_R = get_center("R")
+    # center_R = get_center("R")
     Xa, Ya, Za = symbols("Xa Ya Za")
 
     # Orbital exponents ax, bx, cx, dx.
@@ -387,7 +377,7 @@ def run():
     B, B_map = get_map("B", center_B)
     C, C_map = get_map("C", center_C)
     D, D_map = get_map("D", center_D)
-    R, R_map = get_map("R", center_R)
+    # R, R_map = get_map("R", center_R)
 
     boys_import = ("from pysisyphus.wavefunction.ints.boys import boys",)
 
@@ -442,7 +432,7 @@ def run():
             coeffs=[da],
             exponents=[ax],
             centers=[A],
-            ref_center=R,
+            with_ref_center=True,
             ls_exprs=ls_exprs,
             doc_func=doc_func,
             header=header,
@@ -474,6 +464,7 @@ def run():
             exponents=[ax, bx],
             centers=[A, B],
             ls_exprs=ls_exprs,
+            ncomponents=1,
             doc_func=doc_func,
             header=header,
         )
@@ -526,7 +517,7 @@ def run():
             ls_exprs=ls_exprs,
             doc_func=doc_func,
             ncomponents=3,
-            ref_center=R,
+            with_ref_center=True,
             header=header,
         )
         render_write(dipole_funcs)
@@ -573,7 +564,7 @@ def run():
             ls_exprs=ls_exprs,
             doc_func=doc_func,
             ncomponents=3,
-            ref_center=R,
+            with_ref_center=True,
             header=header,
         )
         render_write(diag_quadrupole_funcs)
@@ -628,7 +619,7 @@ def run():
             ls_exprs=ls_exprs,
             doc_func=doc_func,
             ncomponents=6,
-            ref_center=R,
+            with_ref_center=True,
             header=header,
         )
         render_write(quadrupole_funcs)
@@ -661,6 +652,7 @@ def run():
             exponents=[ax, bx],
             centers=[A, B],
             ls_exprs=ls_exprs,
+            ncomponents=1,
             doc_func=doc_func,
             header=header,
         )
@@ -692,7 +684,7 @@ def run():
             coeffs=[da, db],
             exponents=[ax, bx],
             centers=[A, B],
-            ref_center=R,
+            with_ref_center=True,
             ls_exprs=ls_exprs,
             boys=True,
             doc_func=doc_func,

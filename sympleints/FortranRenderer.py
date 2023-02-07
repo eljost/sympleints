@@ -59,11 +59,14 @@ class FortranRenderer(Renderer):
             {% else %}
             real({{ kind }}), intent(in) :: {{ coeffs|join(", ") }}
             {% endif %}
-            real({{ kind }}), intent(in), dimension(3) :: {{ centers|join(", ") }}  ! Center(s)
+            ! Center(s)
+            real({{ kind }}), intent(in), dimension(3) :: {{ centers|join(", ") }}
             {% if ref_center %}
-            real({{ kind }}), intent(in), dimension(3) :: {{ ref_center }}  ! Reference center
+            ! Reference center; used only by some procedures
+            real({{ kind }}), intent(in), dimension(3) :: {{ ref_center }}
             {% endif %}
-            real({{ kind }}), intent(in out) :: {{ res_name }}({{ res_dim }})  ! Return value
+            ! Return value
+            real({{ kind }}), intent(in out) :: {{ res_name }}({{ res_dim }})
             """
             ),
             trim_blocks=True,
@@ -79,7 +82,9 @@ class FortranRenderer(Renderer):
             coeffs=functions.coeffs,
             zip=zip,
             centers=functions.centers,
-            ref_center=functions.ref_center,
+            ref_center=functions.ref_center
+            if (contracted or functions.with_ref_center)
+            else None,
             res_name=self.res_name,
             res_dim=res_dim,
         )
@@ -139,7 +144,7 @@ class FortranRenderer(Renderer):
         rendered = textwrap.dedent(
             tpl.render(
                 name=name,
-                args=functions.args,
+                args=functions.full_args,
                 doc_str=doc_str,
                 arg_declaration=arg_declaration,
                 res_name=self.res_name,
@@ -204,7 +209,7 @@ class FortranRenderer(Renderer):
             trim_blocks=True,
             lstrip_blocks=True,
         )
-        args = functions.args + [self.res_name]
+        args = functions.prim_args + [functions.ref_center, self.res_name]
         arg_declaration = self.get_argument_declaration(functions, contracted=True)
         res_dim = ", ".join(":" for _ in range(functions.ndim))
 
@@ -225,7 +230,7 @@ class FortranRenderer(Renderer):
         ):
             pntr_args.append(f"{exp_}({counter}), {coeff}({counter}), {center}")
         pntr_args = ", ".join(pntr_args)
-        if functions.ref_center:
+        if functions.with_ref_center:
             pntr_args += f", {functions.ref_center}"
 
         rendered = tpl.render(
@@ -297,7 +302,7 @@ class FortranRenderer(Renderer):
         rendered = f_tpl.render(
             header=header,
             mod_name=mod_name,
-            args=functions.args + [self.res_name],
+            args=functions.full_args + [self.res_name],
             interface_name=interface_name,
             contr_driver=contr_driver,
             arg_declaration=arg_declaration,

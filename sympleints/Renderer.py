@@ -37,7 +37,7 @@ class Renderer(abc.ABC):
     def render_functions(self, functions: Functions):
         # ls_exprs, args, base_name, doc_func, add_imports=None):
 
-        args = functions.args
+        args = functions.full_args
         ncomponents = functions.ncomponents
 
         rendered_funcs = list()
