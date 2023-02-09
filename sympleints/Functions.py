@@ -22,6 +22,7 @@ class Functions:
     with_ref_center: bool = False
     full_name: Optional["str"] = None
     l_aux_max: Optional[int] = None
+    spherical: bool = False
 
     def __post_init__(self):
         assert self.l_max >= 0
@@ -90,3 +91,7 @@ class Functions:
         if self.ncomponents > 0:
             ndim += 1
         return ndim
+
+    @property
+    def cartesian(self):
+        return not self.spherical

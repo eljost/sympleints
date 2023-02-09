@@ -43,9 +43,9 @@ class Renderer(abc.ABC):
         rendered_funcs = list()
         # func_map = list()
         for L_tots, (repls, reduced) in functions.ls_exprs:
-            shape = shell_shape(L_tots, cartesian=True)
+            shape = shell_shape(L_tots, cartesian=functions.cartesian)
             shape_iter = self.shell_shape_iter(
-                L_tots, ncomponents=ncomponents, cartesian=True
+                L_tots, ncomponents=ncomponents, cartesian=functions.cartesian
             )
             try:
                 doc_str = functions.doc_func(L_tots) + "\n\n"

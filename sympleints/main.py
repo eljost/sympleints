@@ -377,9 +377,6 @@ def run():
     B, B_map = get_map("B", center_B)
     C, C_map = get_map("C", center_C)
     D, D_map = get_map("D", center_D)
-    # R, R_map = get_map("R", center_R)
-
-    boys_import = ("from pysisyphus.wavefunction.ints.boys import boys",)
 
     # function_getter = get_functions_getter()
     integral_gen = integral_gen_getter(
@@ -436,6 +433,7 @@ def run():
             ls_exprs=ls_exprs,
             doc_func=doc_func,
             header=header,
+            spherical=sph,
         )
         render_write(gto_funcs)
 
@@ -467,6 +465,7 @@ def run():
             ncomponents=1,
             doc_func=doc_func,
             header=header,
+            spherical=sph,
         )
         render_write(ovlp_funcs)
 
@@ -519,6 +518,7 @@ def run():
             ncomponents=3,
             with_ref_center=True,
             header=header,
+            spherical=sph,
         )
         render_write(dipole_funcs)
 
@@ -566,6 +566,7 @@ def run():
             ncomponents=3,
             with_ref_center=True,
             header=header,
+            spherical=sph,
         )
         render_write(diag_quadrupole_funcs)
 
@@ -621,6 +622,7 @@ def run():
             ncomponents=6,
             with_ref_center=True,
             header=header,
+            spherical=sph,
         )
         render_write(quadrupole_funcs)
 
@@ -655,6 +657,7 @@ def run():
             ncomponents=1,
             doc_func=doc_func,
             header=header,
+            spherical=sph,
         )
         render_write(kinetic_funcs)
 
@@ -686,9 +689,11 @@ def run():
             centers=[A, B],
             with_ref_center=True,
             ls_exprs=ls_exprs,
+            ncomponents=1,
             boys=True,
             doc_func=doc_func,
             header=header,
+            spherical=sph,
         )
         render_write(coulomb_funcs)
 
@@ -697,7 +702,7 @@ def run():
     ###############################################
 
     def _2center2electron():
-        def _2center2el_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
@@ -706,7 +711,7 @@ def run():
                 "two-center two-electron repulsion integral."
             )
 
-        _2center2el_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: TwoCenterTwoElectronShell(
                 La_tot,
                 Lb_tot,
@@ -720,20 +725,26 @@ def run():
             "_2center2el3d",
             (A_map, B_map),
         )
-
-        write_render(
-            _2center2el_ints_Ls,
-            (ax, da, A, bx, db, B),
-            "_2center2el3d",
-            _2center2el_doc_func,
-            c=False,
-            py_kwargs={"add_imports": boys_import},
+        _2c2e_funcs = Functions(
+            name="int2c2e",  # Fortran does not like _2...
+            l_max=l_aux_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            ncomponents=1,
+            boys=True,
+            doc_func=doc_func,
+            header=header,
+            spherical=sph,
         )
+        render_write(_2c2e_funcs)
 
     #################################################
     # Three-center two-electron repulsion integrals #
     #################################################
 
+    """
     def _3center2electron():
         def _3center2el_doc_func(L_tots):
             La_tot, Lb_tot, Lc_tot = L_tots
@@ -762,9 +773,10 @@ def run():
             c=False,
             py_kwargs={"add_imports": boys_import},
         )
+    """
 
     def _3center2electron_sph():
-        def _3center2el_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot, Lc_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
@@ -782,7 +794,7 @@ def run():
                 )
             return doc_str
 
-        _3center2el_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot, Lc_tot: ThreeCenterTwoElectronSphShell(
                 La_tot, Lb_tot, Lc_tot, ax, bx, cx, center_A, center_B, center_C
             ),
@@ -790,16 +802,28 @@ def run():
             (ax, bx, cx),
             "_3center2el3d_sph",
             (A_map, B_map, C_map),
-            sph=False,
         )
-        write_render(
-            _3center2el_ints_Ls,
-            (ax, da, A, bx, db, B, cx, dc, C),
-            "_3center2el3d_sph",
-            _3center2el_doc_func,
-            c=False,
-            py_kwargs={"add_imports": boys_import},
+        int3c2e_funcs = Functions(
+            name="int3c2e",  # Fortran does not like _2...
+            l_max=l_aux_max,
+            coeffs=[da, db, dc],
+            exponents=[ax, bx, cx],
+            centers=[A, B, C],
+            ls_exprs=ls_exprs,
+            boys=True,
+            doc_func=doc_func,
+            header=header,
+            spherical=sph,
         )
+        render_write(int3c2e_funcs)
+        # write_render(
+            # _3center2el_ints_Ls,
+            # (ax, da, A, bx, db, B, cx, dc, C),
+            # "_3center2el3d_sph",
+            # _3center2el_doc_func,
+            # c=False,
+            # py_kwargs={"add_imports": boys_import},
+        # )
 
     #################################
     # Four-center overlap integrals #

@@ -1,5 +1,5 @@
 L_MAX = 4
-L_AUX_MAX = 5
+L_AUX_MAX = 6  # Up to I
 L_MAP = {
     0: "s",
     1: "p",
