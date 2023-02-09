@@ -41,7 +41,6 @@ class Renderer(abc.ABC):
         ncomponents = functions.ncomponents
 
         rendered_funcs = list()
-        # func_map = list()
         for L_tots, (repls, reduced) in functions.ls_exprs:
             shape = shell_shape(L_tots, cartesian=functions.cartesian)
             shape_iter = self.shell_shape_iter(

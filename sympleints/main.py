@@ -43,13 +43,10 @@ from sympy import (
     cse,
     factorial2,
     flatten,
-    IndexedBase,
-    Matrix,
     permutedims,
     pi,
     simplify,
     sqrt,
-    Symbol,
     symbols,
     tensorcontraction as tc,
     tensorproduct as tp,
@@ -172,7 +169,15 @@ def apply_to_components(exprs, components, func):
 
 
 def integral_gen_for_L(
-    int_func, Ls, exponents, contr_coeffs, name, maps, sph=False, norm_pgto=False
+    int_func,
+    Ls,
+    exponents,
+    contr_coeffs,
+    name,
+    maps,
+    sph=False,
+    norm_pgto=False,
+    cse_kwargs=None,
 ):
     time_str = time.strftime("%H:%M:%S")
     start = datetime.now()
@@ -181,10 +186,14 @@ def integral_gen_for_L(
 
     if maps is None:
         maps = list()
+    if cse_kwargs is None:
+        cse_kwargs = dict()
 
     # Generate actual list of integral expressions.
     expect_nexprs = len(list(shell_iter(Ls)))
     exprs = int_func(*Ls)
+
+    # Multiply contraction coefficients
     contr_coeff_prod = functools.reduce(
         lambda di, dj: di * dj, contr_coeffs[: len(Ls)], 1
     )
@@ -215,7 +224,7 @@ def integral_gen_for_L(
         sys.stdout.flush()
 
     # Common subexpression elimination
-    repls, reduced = cse(list(exprs), order="none")
+    repls, reduced = cse(list(exprs), order="none", **cse_kwargs)
     print("\t... did common subexpression elimination")
     sys.stdout.flush()
 
@@ -244,7 +253,7 @@ def integral_gen_for_L(
     return Ls, (repls, reduced)
 
 
-def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False):
+def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False, cse_kwargs=None):
     def integral_gen(
         int_func,
         L_maxs,
@@ -260,7 +269,15 @@ def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False):
 
         for Ls in it.product(*ranges):
             yield integral_gen_for_L(
-                int_func, Ls, exponents, contr_coeffs, name, maps, sph, norm_pgto
+                int_func,
+                Ls,
+                exponents,
+                contr_coeffs,
+                name,
+                maps,
+                sph,
+                norm_pgto,
+                cse_kwargs,
             )
 
     return integral_gen
@@ -324,6 +341,9 @@ def parse_args(args):
     )
     parser.add_argument("--sph", action="store_true")
     parser.add_argument("--norm-pgto", action="store_true")
+    parser.add_argument(
+        "--opt-basic", action="store_true", help="Turn on basic optimizations in CSE."
+    )
 
     return parser.parse_args()
 
@@ -337,6 +357,13 @@ def run():
     norm_pgto = args.norm_pgto
     out_dir = Path(args.out_dir if not args.write else ".")
     keys = args.keys
+
+    cse_kwargs = None
+    if args.opt_basic:
+        cse_kwargs = {
+            "optimizations": "basic",
+        }
+
     if keys is None:
         keys = list()
     try:
@@ -383,6 +410,7 @@ def run():
         contr_coeffs=contr_coeffs,
         sph=sph,
         norm_pgto=norm_pgto,
+        cse_kwargs=cse_kwargs,
     )
     # write_render = get_write_render(out_dir=out_dir, header=header)
     py_renderer = PythonRenderer()
@@ -817,12 +845,12 @@ def run():
         )
         render_write(int3c2e_funcs)
         # write_render(
-            # _3center2el_ints_Ls,
-            # (ax, da, A, bx, db, B, cx, dc, C),
-            # "_3center2el3d_sph",
-            # _3center2el_doc_func,
-            # c=False,
-            # py_kwargs={"add_imports": boys_import},
+        # _3center2el_ints_Ls,
+        # (ax, da, A, bx, db, B, cx, dc, C),
+        # "_3center2el3d_sph",
+        # _3center2el_doc_func,
+        # c=False,
+        # py_kwargs={"add_imports": boys_import},
         # )
 
     #################################
@@ -830,6 +858,8 @@ def run():
     #################################
 
     def fourcenter_overlap():
+        raise Exception("Switch to new Functions syntax!")
+
         def doc_func(L_tots):
             La_tot, Lb_tot, Lc_tot, Ld_tot = L_tots
             shell_a = L_MAP[La_tot]
