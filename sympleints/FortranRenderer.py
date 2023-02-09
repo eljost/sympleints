@@ -267,6 +267,9 @@ class FortranRenderer(Renderer):
             module {{ mod_name }}
 
             use iso_fortran_env, only: real64
+            {% if boys %}
+            use mod_boys, only: boys
+            {% endif %}
 
             implicit none
 
@@ -302,6 +305,7 @@ class FortranRenderer(Renderer):
         rendered = f_tpl.render(
             header=header,
             mod_name=mod_name,
+            boys=functions.boys,
             args=functions.full_args + [self.res_name],
             interface_name=interface_name,
             contr_driver=contr_driver,
