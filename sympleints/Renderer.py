@@ -48,7 +48,7 @@ class Renderer(abc.ABC):
             )
             try:
                 doc_str = functions.doc_func(L_tots) + "\n\n"
-            except AttributeError:
+            except TypeError:
                 doc_str = ""
             doc_str += "Generated code; DO NOT modify by hand!"
             name = func_name_from_Ls(functions.name, L_tots)
