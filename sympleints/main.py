@@ -52,7 +52,7 @@ from sympy import (
     tensorproduct as tp,
 )
 
-from sympleints import __version__
+from sympleints import __version__, canonical_order, get_center, get_map, shell_iter, get_timer_getter
 from sympleints.config import L_MAX, L_AUX_MAX, L_MAP
 from sympleints.defs.coulomb import (
     CoulombShell,
@@ -60,7 +60,6 @@ from sympleints.defs.coulomb import (
     ThreeCenterTwoElectronShell,
     ThreeCenterTwoElectronSphShell,
 )
-from sympleints import canonical_order, get_center, get_map, shell_iter
 from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
 from sympleints.symbols import center_R, R, R_map
 
@@ -76,8 +75,10 @@ from sympleints.PythonRenderer import PythonRenderer
 
 try:
     from pysisyphus.wavefunction.cart2sph import cart2sph_coeffs
+    can_sph = True
 except ModuleNotFoundError:
-    print("pysisyphus is not installed. Disabling Cartesian->spherical transformation.")
+    can_sph = False
+
 
 KEYS = (
     "gto",
@@ -92,6 +93,12 @@ KEYS = (
     "3c2e_sph",
 )
 ONE_THRESH = 1e-14
+
+
+if can_sph:
+    # Pregenerate coefficients
+    CART2SPH = cart2sph_coeffs(max(L_MAX, L_AUX_MAX)+2, zero_small=True)
+PREC = 16
 
 
 def cart2spherical(L_tots, exprs):
@@ -120,7 +127,7 @@ def cart2spherical(L_tots, exprs):
     # Cartesian-to-spherical transformation introduces quite a number of
     # multiplications by 1.0, which are uneccessary. Here, we try to drop
     # some of them by replacing numbers very close to +1.0 with 1.
-    sph = sph.replace(lambda n: n.is_Number and (abs(n - 1) <= ONE_THRESH), lambda n: 1)
+    # sph = sph.replace(lambda n: n.is_Number and (abs(n - 1) <= ONE_THRESH), lambda n: 1)
     # TODO: maybe something along the lines
     # sph = map(lambda expr: expr.evalf(), flatten(sph))
     # is faster?
@@ -181,7 +188,7 @@ def integral_gen_for_L(
 ):
     time_str = time.strftime("%H:%M:%S")
     start = datetime.now()
-    print(f"{time_str} - Generating {Ls} {name}")
+    print(f"{time_str} - Processing {Ls} {name}")
     sys.stdout.flush()
 
     if maps is None:
@@ -189,63 +196,56 @@ def integral_gen_for_L(
     if cse_kwargs is None:
         cse_kwargs = dict()
 
-    # Generate actual list of integral expressions.
-    expect_nexprs = len(list(shell_iter(Ls)))
-    exprs = int_func(*Ls)
+    get_timer = get_timer_getter("\t... ")
 
-    # Multiply contraction coefficients
-    contr_coeff_prod = functools.reduce(
-        lambda di, dj: di * dj, contr_coeffs[: len(Ls)], 1
-    )
-    exprs = [contr_coeff_prod * expr for expr in exprs]
-    print("\t... multiplied contraction coefficients")
+    expect_nexprs = len(list(shell_iter(Ls)))
+    with get_timer("expression generation") as t:
+        exprs = int_func(*Ls)
+
+    with get_timer("multiplying contraction coefficients") as t:
+        contr_coeff_prod = functools.reduce(
+            lambda di, dj: di * dj, contr_coeffs[: len(Ls)], 1
+        )
+        exprs = [contr_coeff_prod * expr for expr in exprs]
     nexprs = len(exprs)
     assert len(exprs) % expect_nexprs == 0
     components = nexprs // expect_nexprs
-    print("\t... generated expressions")
 
-    # Normalize primitive Cartesian GTOs.
     if norm_pgto:
-        pgto_norms = get_pgto_normalization(Ls, exponents)
-        exprs = apply_to_components(
-            exprs,
-            components,
-            lambda cexprs: [norm * expr for norm, expr in zip(pgto_norms, cexprs)],
-        )
-        print("\t... multiplied pGTO normalization factors")
-    sys.stdout.flush()
+        with get_timer("multiplying pGTO normalization factors") as t:
+            pgto_norms = get_pgto_normalization(Ls, exponents)
+            exprs = apply_to_components(
+                exprs,
+                components,
+                lambda cexprs: [norm * expr for norm, expr in zip(pgto_norms, cexprs)],
+            )
 
-    # Carry out Cartesian-to-spherical transformation, if requested. Or do this later?
+    # Maybe do this later?
     if sph:
-        exprs = apply_to_components(
-            exprs, components, lambda cexprs: cart2spherical(Ls, cexprs)
-        )
-        print("\t... did Cartesian to spherical conversion")
-        sys.stdout.flush()
+        with get_timer("Cartesian to spherical conversion") as t:
+            exprs = apply_to_components(
+                exprs, components, lambda cexprs: cart2spherical(Ls, cexprs)
+            )
 
     # Common subexpression elimination
-    repls, reduced = cse(list(exprs), order="none", **cse_kwargs)
-    print("\t... did common subexpression elimination")
-    sys.stdout.flush()
+    with get_timer("common subexpression elimination") as t:
+        repls, reduced = cse(list(exprs), order="none", **cse_kwargs)
 
     # Replacement expressions, used to form the reduced expressions.
-    for i, (lhs, rhs) in enumerate(repls):
-        rhs = simplify(rhs)
-        rhs = rhs.evalf()
-        # Replace occurences of Ax, Ay, Az, ... with A[0], A[1], A[2], ...
-        rhs = functools.reduce(lambda rhs, map_: rhs.xreplace(map_), maps, rhs)
-        repls[i] = (lhs, rhs)
+    with get_timer("simplifying & evaluating RHS") as t:
+        for i, (lhs, rhs) in enumerate(repls):
+            rhs = simplify(rhs)
+            rhs = rhs.evalf(PREC)
+            # Replace occurences of Ax, Ay, Az, ... with A[0], A[1], A[2], ...
+            rhs = functools.reduce(lambda rhs, map_: rhs.xreplace(map_), maps, rhs)
+            repls[i] = (lhs, rhs)
 
     # Reduced expression, i.e., the final integrals/expressions.
-    for i, red in enumerate(reduced):
-        red = simplify(red)
-        red = red.evalf()
-        reduced[i] = functools.reduce(lambda red, map_: red.xreplace(map_), maps, red)
-    # Carry out Cartesian-to-spherical transformation, if requested.
-    # if sph:
-    # reduced = cart2spherical(Ls, reduced)
-    # print("\t... did Cartesian -> Spherical conversion")
-    # sys.stdout.flush()
+    with get_timer("simplifying & evaluating LHS") as t:
+        for i, red in enumerate(reduced):
+            red = simplify(red)
+            red = red.evalf(PREC)
+            reduced[i] = functools.reduce(lambda red, map_: red.xreplace(map_), maps, red)
 
     dur = datetime.now() - start
     print(f"\t... finished in {str(dur)} h")
@@ -369,12 +369,6 @@ def run():
     try:
         os.mkdir(out_dir)
     except FileExistsError:
-        pass
-
-    try:
-        global CART2SPH
-        CART2SPH = cart2sph_coeffs(max(l_max, l_aux_max), zero_small=True)
-    except NameError:
         pass
 
     header = make_header(args)

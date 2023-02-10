@@ -1,7 +1,12 @@
 import itertools as it
-from typing import Optional
+import sys
+import time
 
+from colorama import Fore, Style
 from sympy import IndexedBase, Matrix, Symbol
+
+
+RST = Style.RESET_ALL  # colorama reset
 
 
 def canonical_order(L):
@@ -49,3 +54,27 @@ def get_map(i, center_i):
     array = IndexedBase(i, shape=3)
     array_map = dict(zip(center_i, array))
     return array, array_map
+
+
+class Timer:
+    def __init__(self, msg, prefix="", width=0, thresh=1.0):
+        self.msg = msg
+        self.prefix = prefix
+        self.width = width
+        self.thresh = thresh
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        dur = time.time() - self.start
+        color = Fore.RED if dur > self.thresh else ""
+        print(f"{color}{self.prefix}{self.msg:>{self.width}s} took {dur:> 8.3f} s" + RST)
+        sys.stdout.flush()
+
+
+def get_timer_getter(prefix, width=40):
+    def get_timer(*args):
+        return Timer(*args, prefix=prefix, width=width)
+    return get_timer
