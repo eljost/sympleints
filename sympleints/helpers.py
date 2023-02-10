@@ -57,11 +57,12 @@ def get_map(i, center_i):
 
 
 class Timer:
-    def __init__(self, msg, prefix="", width=0, thresh=1.0):
+    def __init__(self, msg, prefix="", width=0, thresh=1.0, logger=None):
         self.msg = msg
         self.prefix = prefix
         self.width = width
         self.thresh = thresh
+        self.logger = logger
 
     def __enter__(self):
         self.start = time.time()
@@ -70,11 +71,15 @@ class Timer:
     def __exit__(self, exc_type, exc_value, exc_tb):
         dur = time.time() - self.start
         color = Fore.RED if dur > self.thresh else ""
-        print(f"{color}{self.prefix}{self.msg:>{self.width}s} took {dur:> 8.3f} s" + RST)
+        msg = f"{color}{self.prefix}{self.msg:>{self.width}s} took {dur:> 8.3f} s" + RST
+        if self.logger is not None:
+            self.logger.info(msg)
+        else:
+            print(msg)
         sys.stdout.flush()
 
 
-def get_timer_getter(prefix, width=40):
+def get_timer_getter(**kwargs):
     def get_timer(*args):
-        return Timer(*args, prefix=prefix, width=width)
+        return Timer(*args, **kwargs)
     return get_timer

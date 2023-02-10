@@ -52,7 +52,15 @@ from sympy import (
     tensorproduct as tp,
 )
 
-from sympleints import __version__, canonical_order, get_center, get_map, shell_iter, get_timer_getter
+from sympleints import (
+    __version__,
+    canonical_order,
+    get_center,
+    get_map,
+    logger,
+    shell_iter,
+    get_timer_getter,
+)
 from sympleints.config import L_MAX, L_AUX_MAX, L_MAP
 from sympleints.defs.coulomb import (
     CoulombShell,
@@ -75,6 +83,7 @@ from sympleints.PythonRenderer import PythonRenderer
 
 try:
     from pysisyphus.wavefunction.cart2sph import cart2sph_coeffs
+
     can_sph = True
 except ModuleNotFoundError:
     can_sph = False
@@ -97,7 +106,7 @@ ONE_THRESH = 1e-14
 
 if can_sph:
     # Pregenerate coefficients
-    CART2SPH = cart2sph_coeffs(max(L_MAX, L_AUX_MAX)+2, zero_small=True)
+    CART2SPH = cart2sph_coeffs(max(L_MAX, L_AUX_MAX) + 2, zero_small=True)
 PREC = 16
 
 
@@ -196,7 +205,7 @@ def integral_gen_for_L(
     if cse_kwargs is None:
         cse_kwargs = dict()
 
-    get_timer = get_timer_getter("\t... ")
+    get_timer = get_timer_getter(prefix="\t... ", width=40, logger=None)
 
     expect_nexprs = len(list(shell_iter(Ls)))
     with get_timer("expression generation") as t:
@@ -245,7 +254,9 @@ def integral_gen_for_L(
         for i, red in enumerate(reduced):
             red = simplify(red)
             red = red.evalf(PREC)
-            reduced[i] = functools.reduce(lambda red, map_: red.xreplace(map_), maps, red)
+            reduced[i] = functools.reduce(
+                lambda red, map_: red.xreplace(map_), maps, red
+            )
 
     dur = datetime.now() - start
     print(f"\t... finished in {str(dur)} h")
