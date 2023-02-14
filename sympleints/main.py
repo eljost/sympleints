@@ -22,6 +22,9 @@
 # [7] https://arxiv.org/pdf/2210.03192.pdf
 #     Memory-Efficient Recursive Evaluation of 3-Center Gaussian Integrals
 #     Asadchev, Valeev, 2022
+# [8] https://arxiv.org/pdf/2007.12057.pdf
+#     Fundamentals of Molecular Integrals Evaluation
+#     Fermann, Valeev
 
 
 import argparse
@@ -145,7 +148,7 @@ def cart2spherical(L_tots, exprs):
 
 @functools.cache
 def norm_pgto(lmn, exponent):
-    """Norm of a primitive Cartesian GTO with angular momentum L = l + m + n."""
+    """Norm of a primitive Cartesian GTO with total angular momentum L = l + m + n."""
     L = sum(lmn)
     fact2l, fact2m, fact2n = [factorial2(2 * _ - 1) for _ in lmn]
     return sqrt(
@@ -165,6 +168,29 @@ def get_pgto_normalization(L_tots, exponents):
     L_norms = list()
     for L_tot, exponent in zip(L_tots, exponents):
         L_norms.append([norm_pgto(lmn, exponent) for lmn in canonical_order(L_tot)])
+    # prod() is actually from the math module of the standard library.
+    # sympy seems to lack a simple function that just multiplies its arguments.
+    exprs = [prod(ns) for ns in it.product(*L_norms)]
+    return exprs
+
+
+
+def norm_cgto(lmn):
+    """lmn-dependent part of the norm of a contracted Cartesian GTO with
+    total angular momentum L = l + m + n.
+
+    Basically the first term in Eq. (2.25) of [8], before the sum starts.
+    The remaining square-root of the sum must be calculated & multiplied onto
+    the contraction coefficients outside of sympleints."""
+    L = sum(lmn)
+    fact2l, fact2m, fact2n = [factorial2(2 * _ - 1) for _ in lmn]
+    return 1 / sqrt(pi**1.5 * fact2l * fact2m * fact2n / 2**L)
+
+
+def get_cgto_normalization(L_tots, exponents):
+    L_norms = list()
+    for L_tot in L_tots:
+        L_norms.append([norm_cgto(lmn) for lmn in canonical_order(L_tot)])
     # prod() is actually from the math module of the standard library.
     # sympy seems to lack a simple function that just multiplies its arguments.
     exprs = [prod(ns) for ns in it.product(*L_norms)]
@@ -192,7 +218,7 @@ def integral_gen_for_L(
     name,
     maps,
     sph=False,
-    norm_pgto=False,
+    norm_cgto=False,
     cse_kwargs=None,
 ):
     time_str = time.strftime("%H:%M:%S")
@@ -220,9 +246,9 @@ def integral_gen_for_L(
     assert len(exprs) % expect_nexprs == 0
     components = nexprs // expect_nexprs
 
-    if norm_pgto:
-        with get_timer("multiplying pGTO normalization factors") as t:
-            pgto_norms = get_pgto_normalization(Ls, exponents)
+    if norm_cgto:
+        with get_timer("multiplying GTO normalization factors") as t:
+            pgto_norms = get_cgto_normalization(Ls, exponents)
             exprs = apply_to_components(
                 exprs,
                 components,
@@ -264,7 +290,7 @@ def integral_gen_for_L(
     return Ls, (repls, reduced)
 
 
-def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False, cse_kwargs=None):
+def integral_gen_getter(contr_coeffs, sph=False, norm_cgto=False, cse_kwargs=None):
     def integral_gen(
         int_func,
         L_maxs,
@@ -272,7 +298,7 @@ def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False, cse_kwargs=Non
         name,
         maps=None,
         sph=sph,
-        norm_pgto=norm_pgto,
+        norm_cgto=norm_cgto,
     ):
         if maps is None:
             maps = list()
@@ -287,7 +313,7 @@ def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False, cse_kwargs=Non
                 name,
                 maps,
                 sph,
-                norm_pgto,
+                norm_cgto,
                 cse_kwargs,
             )
 
@@ -351,7 +377,7 @@ def parse_args(args):
         "If not given, all expressions are generated.",
     )
     parser.add_argument("--sph", action="store_true")
-    parser.add_argument("--norm-pgto", action="store_true")
+    parser.add_argument("--norm-cgto", action="store_true")
     parser.add_argument(
         "--opt-basic", action="store_true", help="Turn on basic optimizations in CSE."
     )
@@ -365,7 +391,7 @@ def run():
     l_max = args.lmax
     l_aux_max = args.lauxmax
     sph = args.sph
-    norm_pgto = args.norm_pgto
+    norm_cgto = args.norm_cgto
     out_dir = Path(args.out_dir if not args.write else ".")
     keys = args.keys
 
@@ -414,7 +440,7 @@ def run():
     integral_gen = integral_gen_getter(
         contr_coeffs=contr_coeffs,
         sph=sph,
-        norm_pgto=norm_pgto,
+        norm_cgto=norm_cgto,
         cse_kwargs=cse_kwargs,
     )
     # write_render = get_write_render(out_dir=out_dir, header=header)
