@@ -39,6 +39,7 @@ class FortranRenderer(Renderer):
     ext = ".f90"
     real_kind = "kind=real64"
     res_name = "res"
+    language = "Fortran"
 
     def shell_shape_iter(self, *args, **kwargs):
         # Start indexing at 1, instead of 0.
@@ -151,7 +152,6 @@ class FortranRenderer(Renderer):
                 res_len=res_len,
                 assignments=assignments,
                 repl_lines=repl_lines,
-                shape=shape,
                 results_iter=results_iter,
                 reduced=reduced,
                 kind=self.real_kind,

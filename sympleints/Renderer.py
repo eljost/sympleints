@@ -42,7 +42,9 @@ class Renderer(abc.ABC):
 
         rendered_funcs = list()
         for L_tots, (repls, reduced) in functions.ls_exprs:
-            shape = shell_shape(L_tots, cartesian=functions.cartesian)
+            shape = shell_shape(
+                L_tots, ncomponents=functions.ncomponents, cartesian=functions.cartesian
+            )
             shape_iter = self.shell_shape_iter(
                 L_tots, ncomponents=ncomponents, cartesian=functions.cartesian
             )
@@ -53,7 +55,7 @@ class Renderer(abc.ABC):
             doc_str += "Generated code; DO NOT modify by hand!"
             name = func_name_from_Ls(functions.name, L_tots)
             # func_map.append((L_tots, name))
-            print(f"Rendering '{name}' ... ", end="")
+            print(f"Rendering {self.language} code for '{name}' ... ", end="")
             start = time.time()
             func = self.render_function(
                 functions,

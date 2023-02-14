@@ -24,12 +24,15 @@ def shell_iter(Ls):
     return it.product(*[canonical_order(L) for L in Ls])
 
 
-def shell_shape(Ls, cartesian=True):
+def shell_shape(Ls, ncomponents: int = 0, cartesian=True):
     if cartesian:
         size = lambda L: (L + 2) * (L + 1) // 2
     else:  # Spherical
         size = lambda L: 2 * L + 1
-    return tuple(map(size, Ls))
+    shape = tuple(map(size, Ls))
+    if ncomponents > 0:
+        shape = (ncomponents, ) + shape
+    return shape
 
 
 def shell_shape_iter(Ls, ncomponents: int = 0, start_at: int = 0, **kwargs):
