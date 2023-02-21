@@ -87,12 +87,10 @@ class Coulomb(TwoCenter1d):
 class CoulombShell(Function):
     @classmethod
     def eval(cls, La_tot, Lb_tot, a, b, A, B, R=(0.0, 0.0, 0.0)):
-        exprs = [
-            Coulomb(a, A, b, B, R).eval(*La, *Lb, 0)
-            for La, Lb in shell_iter((La_tot, Lb_tot))
-        ]
+        lmns = list(shell_iter((La_tot, Lb_tot)))
+        exprs = [Coulomb(a, A, b, B, R).eval(*La, *Lb, 0) for La, Lb in lmns]
         # print(Coulomb.eval.cache_info())
-        return exprs
+        return exprs, lmns
 
 
 class TwoCenterTwoElectron(Function):
@@ -172,12 +170,10 @@ class TwoCenterTwoElectron(Function):
 class TwoCenterTwoElectronShell(Function):
     @classmethod
     def eval(cls, La_tot, Lb_tot, a, b, A, B):
-        exprs = [
-            TwoCenterTwoElectron(*La, *Lb, 0, a, b, A, B)
-            for La, Lb in shell_iter((La_tot, Lb_tot))
-        ]
+        lmns = list(shell_iter((La_tot, Lb_tot)))
+        exprs = [TwoCenterTwoElectron(*La, *Lb, 0, a, b, A, B) for La, Lb in lmns]
         # print(TwoCenterTwoElectron.eval.cache_info())
-        return exprs
+        return exprs, lmns
 
 
 class ThreeCenterTwoElectronBase(Function):
@@ -348,20 +344,22 @@ class ThreeCenterTwoElectronSph(ThreeCenterTwoElectronBase):
 class ThreeCenterTwoElectronShell(Function):
     @classmethod
     def eval(cls, La_tot, Lb_tot, Lc_tot, a, b, c, A, B, C):
+        lmns = list(shell_iter((La_tot, Lb_tot, Lc_tot)))
         exprs = [
             ThreeCenterTwoElectron(*La, *Lb, *Lc, 0, a, b, c, A, B, C)
-            for La, Lb, Lc in shell_iter((La_tot, Lb_tot, Lc_tot))
+            for La, Lb, Lc in lmns
         ]
         # print(ThreeCenterTwoElectron.eval.cache_info())
-        return exprs
+        return exprs, lmns
 
 
 class ThreeCenterTwoElectronSphShell(Function):
     @classmethod
     def eval(cls, La_tot, Lb_tot, Lc_tot, a, b, c, A, B, C):
+        lmns = list(shell_iter((La_tot, Lb_tot, Lc_tot)))
         exprs = [
             ThreeCenterTwoElectronSph(*La, *Lb, *Lc, 0, a, b, c, A, B, C)
-            for La, Lb, Lc in shell_iter((La_tot, Lb_tot, Lc_tot))
+            for La, Lb, Lc in lmns
         ]
         # print(ThreeCenterTwoElectron.eval.cache_info())
-        return exprs
+        return exprs, lmns

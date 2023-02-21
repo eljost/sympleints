@@ -47,16 +47,18 @@ def gen_multipole_3d(La, Lb, a, b, A, B, Le, R):
 
 
 def gen_multipole_shell(La_tot, Lb_tot, a, b, A, B, Le_tot=0, R=(0.0, 0.0, 0.0)):
-    exprs = [
-        gen_multipole_3d(La, Lb, a, b, A, B, Le, R)
-        for Le, La, Lb in shell_iter((Le_tot, La_tot, Lb_tot))
-    ]
-    return exprs
+    lmns = list(shell_iter((Le_tot, La_tot, Lb_tot)))
+    exprs = [gen_multipole_3d(La, Lb, a, b, A, B, Le, R) for Le, La, Lb in lmns]
+    # Drop Le from angular momenta, only return (La, Lb) tuples.
+    lmns = [(La, Lb) for Le, La, Lb in lmns]
+    return exprs, lmns
 
 
 def gen_diag_quadrupole_shell(La_tot, Lb_tot, a, b, A, B, R=(0.0, 0.0, 0.0)):
     exprs = list()
+    lmns = list(shell_iter((La_tot, Lb_tot)))
     for Le in ((2, 0, 0), (0, 2, 0), (0, 0, 2)):
-        for La, Lb in shell_iter((La_tot, Lb_tot)):
+        for La, Lb in lmns:
             exprs.append(gen_multipole_3d(La, Lb, a, b, A, B, Le, R))
-    return exprs
+    lmns = lmns + lmns + lmns
+    return exprs, lmns

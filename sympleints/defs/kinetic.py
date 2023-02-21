@@ -52,7 +52,8 @@ def gen_kinetic_3d(La, Lb, a, b, A, B):
 
 
 def gen_kinetic_shell(La_tot, Lb_tot, a, b, A, B):
+    lmns = list(shell_iter((La_tot, Lb_tot)))
     exprs = [
-        gen_kinetic_3d(La, Lb, a, b, A, B) for La, Lb in shell_iter((La_tot, Lb_tot))
+        gen_kinetic_3d(La, Lb, a, b, A, B) for La, Lb in lmns
     ]
-    return exprs
+    return exprs, lmns

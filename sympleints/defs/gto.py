@@ -23,5 +23,6 @@ def gen_gto_3d(La, ax, A, R):
 
 
 def gen_gto3d_shell(La_tot, ax, A, R):
-    exprs = [gen_gto_3d(La, ax, A, R) for La, in shell_iter((La_tot,))]
-    return exprs
+    lmns = list(shell_iter((La_tot,)))
+    exprs = [gen_gto_3d(La, ax, A, R) for La, in lmns]
+    return exprs, lmns

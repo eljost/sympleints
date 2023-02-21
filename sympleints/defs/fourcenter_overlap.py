@@ -54,8 +54,9 @@ def gen_fourcenter_overlap_3d(La, Lb, Lc, Ld, a, b, c, d, A, B, C, D):
 def gen_fourcenter_overlap_shell(
     La_tot, Lb_tot, Lc_tot, Ld_tot, a, b, c, d, A, B, C, D
 ):
+    lmns = list(shell_iter((La_tot, Lb_tot, Lc_tot, Ld_tot)))
     exprs = [
         gen_fourcenter_overlap_3d(La, Lb, Lc, Ld, a, b, c, d, A, B, C, D)
-        for La, Lb, Lc, Ld in shell_iter((La_tot, Lb_tot, Lc_tot, Ld_tot))
+        for La, Lb, Lc, Ld in lmns
     ]
-    return exprs
+    return exprs, lmns

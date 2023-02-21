@@ -85,7 +85,7 @@ from sympleints.Functions import Functions
 from sympleints.PythonRenderer import PythonRenderer
 
 try:
-    from pysisyphus.wavefunction.cart2sph import cart2sph_coeffs
+    from pysisyphus.wavefunction.cart2sph import cart2sph_coeffs, cart2sph_nlms
 
     can_sph = True
 except ModuleNotFoundError:
@@ -110,6 +110,7 @@ ONE_THRESH = 1e-14
 if can_sph:
     # Pregenerate coefficients
     CART2SPH = cart2sph_coeffs(max(L_MAX, L_AUX_MAX) + 2, zero_small=True)
+    NLMS = cart2sph_nlms(max(L_MAX, L_AUX_MAX) + 2)
 PREC = 16
 
 
@@ -146,6 +147,11 @@ def cart2spherical(L_tots, exprs):
     return flatten(sph)
 
 
+def get_spherical_quantum_numbers(L_tots):
+    L_nlms = [NLMS[L] for L in L_tots]
+    return list(it.product(*L_nlms))
+
+
 @functools.cache
 def norm_pgto(lmn, exponent):
     """Norm of a primitive Cartesian GTO with total angular momentum L = l + m + n."""
@@ -174,33 +180,10 @@ def get_pgto_normalization(L_tots, exponents):
     return exprs
 
 
-
-def norm_cgto(lmn):
-    """lmn-dependent part of the norm of a contracted Cartesian GTO with
-    total angular momentum L = l + m + n.
-
-    Basically the first term in Eq. (2.25) of [8], before the sum starts.
-    The remaining square-root of the sum must be calculated & multiplied onto
-    the contraction coefficients outside of sympleints."""
-    L = sum(lmn)
-    fact2l, fact2m, fact2n = [factorial2(2 * _ - 1) for _ in lmn]
-    return 1 / sqrt(pi**1.5 * fact2l * fact2m * fact2n / 2**L)
-
-
-def get_cgto_normalization(L_tots, exponents):
-    L_norms = list()
-    for L_tot in L_tots:
-        L_norms.append([norm_cgto(lmn) for lmn in canonical_order(L_tot)])
-    # prod() is actually from the math module of the standard library.
-    # sympy seems to lack a simple function that just multiplies its arguments.
-    exprs = [prod(ns) for ns in it.product(*L_norms)]
-    return exprs
-
-
 def apply_to_components(exprs, components, func):
     """Apply function func to cexprs in components of exprs.
 
-    For n components the order (cexprs_0, cexprs_1, ..., cexprsn) in exprs is expected."""
+    For n components the order (cexprs_0, cexprs_1, ..., cexprs_n) in exprs is expected."""
     nexprs = len(exprs)
     nexprs_per_component = nexprs // components
     mod_exprs = list()
@@ -218,8 +201,9 @@ def integral_gen_for_L(
     name,
     maps,
     sph=False,
-    norm_cgto=False,
+    norm_pgto=False,
     cse_kwargs=None,
+    filter_func=None,
 ):
     time_str = time.strftime("%H:%M:%S")
     start = datetime.now()
@@ -230,12 +214,18 @@ def integral_gen_for_L(
         maps = list()
     if cse_kwargs is None:
         cse_kwargs = dict()
+    if filter_func is None:
+
+        def filter_func(*args):
+            return True
 
     get_timer = get_timer_getter(prefix="\t... ", width=40, logger=None)
 
     expect_nexprs = len(list(shell_iter(Ls)))
+    # Actually create expressions by calling the passed function.
+    # This is where the magic begins to happen!
     with get_timer("expression generation") as t:
-        exprs = int_func(*Ls)
+        exprs, lmns = int_func(*Ls)
 
     with get_timer("multiplying contraction coefficients") as t:
         contr_coeff_prod = functools.reduce(
@@ -246,21 +236,35 @@ def integral_gen_for_L(
     assert len(exprs) % expect_nexprs == 0
     components = nexprs // expect_nexprs
 
-    if norm_cgto:
+    if norm_pgto:
         with get_timer("multiplying GTO normalization factors") as t:
-            pgto_norms = get_cgto_normalization(Ls, exponents)
+            pgto_norms = get_pgto_normalization(Ls, exponents)
             exprs = apply_to_components(
                 exprs,
                 components,
                 lambda cexprs: [norm * expr for norm, expr in zip(pgto_norms, cexprs)],
             )
 
-    # Maybe do this later?
+    # Maybe do this later, after the CSE?
     if sph:
         with get_timer("Cartesian to spherical conversion") as t:
             exprs = apply_to_components(
                 exprs, components, lambda cexprs: cart2spherical(Ls, cexprs)
             )
+            # NOTE: Cartesian basis functions are characterized by their angular momenta
+            # l, m and n, stored in the variable 'lmns'. After transformation to spherical
+            # basis functions l, m, n are replaced by the quantum numbers n, l and m, which
+            # are stored again  in 'lmns', overwriting the Cartesian values.
+            cart_lmns = lmns
+            lmns = get_spherical_quantum_numbers(Ls)
+            # Repeat updated list of quantum numbers the correct number of times.
+            lmns = list(it.chain(*[lmns for _ in range(components)]))
+
+    assert len(exprs) == len(lmns)
+    # Filter expressions, according to their quantum numbers.
+    exprs, lmns = zip(
+        *[(expr, lmns_) for expr, lmns_ in zip(exprs, lmns) if filter_func(*lmns_)]
+    )
 
     # Common subexpression elimination
     with get_timer("common subexpression elimination") as t:
@@ -290,7 +294,7 @@ def integral_gen_for_L(
     return Ls, (repls, reduced)
 
 
-def integral_gen_getter(contr_coeffs, sph=False, norm_cgto=False, cse_kwargs=None):
+def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False, cse_kwargs=None):
     def integral_gen(
         int_func,
         L_maxs,
@@ -298,13 +302,18 @@ def integral_gen_getter(contr_coeffs, sph=False, norm_cgto=False, cse_kwargs=Non
         name,
         maps=None,
         sph=sph,
-        norm_cgto=norm_cgto,
+        norm_pgto=norm_pgto,
+        L_iter=None,
+        filter_func=None,
     ):
         if maps is None:
             maps = list()
         ranges = [range(L + 1) for L in L_maxs]
 
-        for Ls in it.product(*ranges):
+        if L_iter is None:
+            L_iter = it.product(*ranges)
+
+        for Ls in L_iter:
             yield integral_gen_for_L(
                 int_func,
                 Ls,
@@ -313,8 +322,9 @@ def integral_gen_getter(contr_coeffs, sph=False, norm_cgto=False, cse_kwargs=Non
                 name,
                 maps,
                 sph,
-                norm_cgto,
+                norm_pgto,
                 cse_kwargs,
+                filter_func=filter_func,
             )
 
     return integral_gen
@@ -377,7 +387,7 @@ def parse_args(args):
         "If not given, all expressions are generated.",
     )
     parser.add_argument("--sph", action="store_true")
-    parser.add_argument("--norm-cgto", action="store_true")
+    parser.add_argument("--norm-pgto", action="store_true")
     parser.add_argument(
         "--opt-basic", action="store_true", help="Turn on basic optimizations in CSE."
     )
@@ -391,7 +401,7 @@ def run():
     l_max = args.lmax
     l_aux_max = args.lauxmax
     sph = args.sph
-    norm_cgto = args.norm_cgto
+    norm_pgto = args.norm_pgto
     out_dir = Path(args.out_dir if not args.write else ".")
     keys = args.keys
 
@@ -419,7 +429,6 @@ def run():
     center_D = get_center("D")
     # Multipole origin or nuclear position
     # center_R = get_center("R")
-    Xa, Ya, Za = symbols("Xa Ya Za")
 
     # Orbital exponents ax, bx, cx, dx.
     ax, bx, cx, dx = symbols("ax bx cx dx", real=True)
@@ -440,7 +449,7 @@ def run():
     integral_gen = integral_gen_getter(
         contr_coeffs=contr_coeffs,
         sph=sph,
-        norm_cgto=norm_cgto,
+        norm_pgto=norm_pgto,
         cse_kwargs=cse_kwargs,
     )
     # write_render = get_write_render(out_dir=out_dir, header=header)
@@ -452,13 +461,6 @@ def run():
     def render_write(funcs):
         fns = [renderer.render_write(funcs, out_dir) for renderer in renderers]
         return fns
-        # renderer.render_write(funcs, out_dir)
-        # fns.
-        # [renderer.write(gto_funcs, out_dir) for renderer in ]
-        # with open(out_dir / "gto3d.py", "w") as handle:
-        # handle.write(py_renderer.render(gto_funcs))
-        # with open(out_dir / "gto3d.f90", "w") as handle:
-        # handle.write(f_renderer.render(gto_funcs))
 
     #################
     # Cartesian GTO #
@@ -495,6 +497,41 @@ def run():
             spherical=sph,
         )
         render_write(gto_funcs)
+
+    ################
+    # Self Overlap #
+    ################
+
+    def self_overlap():
+        def doc_func(L_tots):
+            (La_tot, _) = L_tots
+            shell_a = L_MAP[La_tot]
+            return f"{INT_KIND} 3D ({shell_a}{shell_a}) self overlap."
+
+        ls_exprs = integral_gen(
+            lambda La_tot, Lb_tot: gen_overlap_shell(La_tot, Lb_tot, ax, bx, A, A),
+            (l_max, l_max),
+            (ax, bx),
+            "self_ovlp3d",
+            (A_map, ),
+            L_iter=[(L, L) for L in range(l_max + 1)],
+            # Only keep the diagonal elements where all quantum numbers are identical.
+            filter_func=lambda nlma, nlmb: nlma == nlmb,
+        )
+
+        self_ovlp_funcs = Functions(
+            name="self_ovlp3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],  # Not actually needed
+            ls_exprs=ls_exprs,
+            ncomponents=1,
+            doc_func=doc_func,
+            header=header,
+            spherical=sph,
+        )
+        render_write(self_ovlp_funcs)
 
     #####################
     # Overlap integrals #
@@ -932,6 +969,7 @@ def run():
 
     funcs = {
         "gto": gto,  # Cartesian Gaussian-type-orbital for density evaluation
+        "sovlp": self_overlap,  # Self overlap
         "ovlp": overlap,  # Overlap integrals
         "dpm": dipole,  # Linear moment (dipole) integrals
         "dqpm": diag_quadrupole,  # Diagonal part of the quadrupole tensor
