@@ -1,9 +1,4 @@
-import functools
-import itertools as it
-import random
-import string
 import textwrap
-import time
 
 from jinja2 import Template
 from sympy.codegen.ast import Assignment
@@ -97,12 +92,16 @@ class PythonRenderer(Renderer):
             trim_blocks=True,
             lstrip_blocks=True,
         )
-        rendered = textwrap.dedent(tpl.render(name=name, rendered_funcs=rendered_funcs)).strip()
+        rendered = textwrap.dedent(
+            tpl.render(name=name, rendered_funcs=rendered_funcs)
+        ).strip()
         return rendered
 
     def render_module(self, functions, rendered_funcs):
         func_dict = self.render_func_dict(functions.name, rendered_funcs)
-        tpl = Template(textwrap.dedent("""
+        tpl = Template(
+            textwrap.dedent(
+                """
             \"\"\"
             {{ header }}
             \"\"\"
@@ -123,7 +122,8 @@ class PythonRenderer(Renderer):
             {% endfor %}
 
             {{ func_dict }}
-        """),
+        """
+            ),
             trim_blocks=True,
             lstrip_blocks=True,
         )

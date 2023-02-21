@@ -28,6 +28,7 @@ class Functions:
         assert self.l_max >= 0
         assert len(self.coeffs) == len(self.exponents) == len(self.centers)
 
+        # This realizes the generator containing the expressions
         self.ls_exprs = list(self.ls_exprs)
 
         if self.full_name is None:
@@ -36,12 +37,6 @@ class Functions:
     @property
     def Ls(self):
         return ["La", "Lb", "Lc", "Ld"][: self.nbfs]
-
-    def get_args(self, ref_center=False):
-        args = list()
-        for exponent, coeff, center in zip(self.exponents, self.coeffs, self.centers):
-            args.extend([str(exponent), str(coeff), str(center)])
-        return args
 
     @property
     def prim_args(self):
@@ -54,7 +49,7 @@ class Functions:
     def full_args(self):
         args = self.prim_args
         if self.with_ref_center:
-            args += [self.ref_center]
+            args += [str(self.ref_center)]
         return args
 
     @property
