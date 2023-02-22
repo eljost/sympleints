@@ -1,9 +1,7 @@
 import os
 import re
 import tempfile
-import textwrap
 
-from jinja2 import Template
 from sympy.codegen.ast import Assignment
 from sympy.printing.fortran import FCodePrinter
 
@@ -46,33 +44,7 @@ class FortranRenderer(Renderer):
         return shell_shape_iter(*args, start_at=1, **kwargs)
 
     def get_argument_declaration(self, functions, contracted=False):
-        tpl = Template(
-            textwrap.dedent(
-                """
-            {% for exp_ in exps %}
-            real({{ kind }}), intent(in) :: {{ exp_ }}{% if contracted %}(:){% endif %}  ! Primitive exponent(s)
-            {% endfor %}
-            {% if contracted %}
-            ! Contraction coefficient(s)
-            {% for exp_, coeff in zip(exps, coeffs) %}
-            real({{ kind }}), intent(in), dimension(size({{ exp_ }})) :: {{ coeff }}
-            {% endfor %}
-            {% else %}
-            real({{ kind }}), intent(in) :: {{ coeffs|join(", ") }}
-            {% endif %}
-            ! Center(s)
-            real({{ kind }}), intent(in), dimension(3) :: {{ centers|join(", ") }}
-            {% if ref_center %}
-            ! Reference center; used only by some procedures
-            real({{ kind }}), intent(in), dimension(3) :: {{ ref_center }}
-            {% endif %}
-            ! Return value
-            real({{ kind }}), intent(in out) :: {{ res_name }}({{ res_dim }})
-            """
-            ),
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
+        tpl = self.env.get_template("fortran_arg_declaration.tpl")
         arg_dim = "(:)" if contracted else ""
         res_dim = ", ".join(":" for _ in range(functions.ndim))
         rendered = tpl.render(
@@ -112,38 +84,8 @@ class FortranRenderer(Renderer):
         doc_str = make_fortran_comment(doc_str)
         arg_declaration = self.get_argument_declaration(functions)
 
-        tpl = Template(
-            textwrap.dedent(
-                """
-            subroutine {{ name }} ({{ args|join(", ") }}, {{ res_name }})
-
-            {% if doc_str %}
-            {{ doc_str }}
-            {% endif %}
-
-            {{ arg_declaration }}
-
-            ! Intermediate quantities
-            {% for as_ in assignments %}
-            real({{ kind }}) :: {{ as_.lhs }}
-            {% endfor %}
-
-            {% for line in repl_lines %}
-            {{ line }}
-            {% endfor %}
-
-            {% for inds, res_line in results_iter %}
-            {{ res_name }}({{ inds|join(", ") }})  = {{ res_line }}
-            {% endfor %}
-            end subroutine {{ name }}
-        """
-            ),
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
-
-        rendered = textwrap.dedent(
-            tpl.render(
+        tpl = self.env.get_template("fortran_function.tpl")
+        rendered = tpl.render(
                 name=name,
                 args=functions.full_args,
                 doc_str=doc_str,
@@ -156,23 +98,11 @@ class FortranRenderer(Renderer):
                 reduced=reduced,
                 kind=self.real_kind,
             )
-        ).strip()
         return rendered
 
     def render_f_init(self, name, rendered_funcs, func_array_name="func_array"):
-        F_INIT_TPL = Template(
-            """
-        subroutine {{ name }}_init ()
-        ! Initializer procedure. MUST be called before {{ name }} can be called.
-        {% for func in funcs %}
-            {{ func_array_name }}({{ func.Ls|join(", ") }})%f => {{ func.name }}
-        {% endfor %}
-        end subroutine
-        """,
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
-        f_init = F_INIT_TPL.render(
+        tpl = self.env.get_template("fortran_init.tpl")
+        f_init = tpl.render(
             name=name,
             funcs=rendered_funcs,
             func_array_name=func_array_name,
@@ -180,35 +110,7 @@ class FortranRenderer(Renderer):
         return f_init
 
     def render_contracted_driver(self, functions):
-        tpl = Template(
-            textwrap.dedent(
-                """
-        subroutine {{ name }}({{ L_args|join(", ") }}, {{ args|join(", ") }})
-            integer, intent(in) :: {{ Ls|join(", ") }}
-            {{ arg_declaration }}
-            real(kind=real64), allocatable, dimension({{ res_dim }}) :: res_tmp
-            ! Initializing with => null () adds an implicit save, which will mess
-            ! everything up when running with OpenMP.
-            procedure({{ name }}_proc), pointer :: fncpntr
-            integer :: {{ loop_counter|join(", ") }}
-
-            allocate(res_tmp, mold=res)
-            fncpntr => func_array({{ L_args|join(", ") }})%f
-
-            res = 0
-            {{ loops|join("\n") }}
-                call fncpntr({{ pntr_args }}, res_tmp)
-                res = res + res_tmp
-            {% for _ in loops %}
-            end do
-            {% endfor %}
-            deallocate(res_tmp)
-        end subroutine {{ name }}
-        """
-            ).strip(),
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
+        tpl = self.env.get_template("fortran_contracted_driver.tpl")
         args = functions.prim_args + [functions.ref_center, self.res_name]
         arg_declaration = self.get_argument_declaration(functions, contracted=True)
         res_dim = ", ".join(":" for _ in range(functions.ndim))
@@ -260,49 +162,8 @@ class FortranRenderer(Renderer):
         func_arr_dims = [f"0:{l_max}" for _ in range(functions.nbfs)]
         contr_driver = self.render_contracted_driver(functions)
 
-        f_tpl = Template(
-            textwrap.dedent(
-                """
-            {{ header }}
-            module {{ mod_name }}
-
-            use iso_fortran_env, only: real64
-            {% if boys %}
-            use mod_boys, only: boys
-            {% endif %}
-
-            implicit none
-
-            type fp
-                procedure({{ interface_name }}) ,pointer ,nopass :: f =>null()
-            end type fp
-
-            interface
-                subroutine {{ interface_name }}({{ args|join(", ")}})
-                  import :: real64
-                  {{ arg_declaration }}
-                end subroutine {{ interface_name }}
-            end interface
-
-            type(fp) :: func_array({{ func_arr_dims|join(", ") }})
-
-            contains
-            {{ init }}
-
-            {{ contr_driver }}
-
-            {% for func in funcs %}
-                {{ func.text }}
-            {% endfor %}
-
-
-            end module {{ mod_name }}
-            """.strip()
-            ),
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
-        rendered = f_tpl.render(
+        tpl = self.env.get_template("fortran_module.tpl")
+        rendered = tpl.render(
             header=header,
             mod_name=mod_name,
             boys=functions.boys,
@@ -315,7 +176,6 @@ class FortranRenderer(Renderer):
             init=init,
             funcs=rendered_funcs,
         )
-        rendered = textwrap.dedent(rendered)
         rendered_backup = rendered
         # I wonder if fprettify can also deal with strings instead of files only?!
         # I did not manage to find out ... so we use some temporary files here.
