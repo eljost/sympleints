@@ -1,6 +1,3 @@
-import textwrap
-
-from jinja2 import Template
 from sympy.codegen.ast import Assignment
 from sympy.printing.numpy import NumPyPrinter
 
@@ -44,90 +41,26 @@ class PythonRenderer(Renderer):
             shape_iter = [shape[1:] for shape in shape_iter]
         results_iter = zip(shape_iter, result_lines)
 
-        tpl = Template(
-            """
-        def {{ name }}({{ args }}):
-            {% if doc_str %}
-            \"\"\"{{ doc_str }}\"\"\"
-            {% endif %}
-
-            result = numpy.zeros({{ shape }}, dtype=float)
-
-            {% for line in py_lines %}
-            {{ line }}
-            {% endfor %}
-
-            # {{ n_return_vals }} item(s)
-            {% for inds, res_line in results_iter %}
-            result[{{ inds|join(", ")}}] = {{ res_line }}
-            {% endfor %}
-            return result
-        """,
-            trim_blocks=True,
-            lstrip_blocks=True,
+        tpl = self.env.get_template("py_func.tpl")
+        rendered = tpl.render(
+            name=name,
+            args=args,
+            py_lines=py_lines,
+            results_iter=results_iter,
+            n_return_vals=len(reduced),
+            doc_str=doc_str,
+            shape=shape,
         )
-
-        rendered = textwrap.dedent(
-            tpl.render(
-                name=name,
-                args=args,
-                py_lines=py_lines,
-                results_iter=results_iter,
-                n_return_vals=len(reduced),
-                doc_str=doc_str,
-                shape=shape,
-            )
-        ).strip()
         return rendered
 
     def render_func_dict(self, name, rendered_funcs):
-        tpl = Template(
-            """
-            {{ name }} = {
-            {% for func in rendered_funcs %}
-            {{ func.Ls }}: {{ func.name }},
-            {% endfor %}
-            }
-            """,
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
-        rendered = textwrap.dedent(
-            tpl.render(name=name, rendered_funcs=rendered_funcs)
-        ).strip()
+        tpl = self.env.get_template("py_func_dict.tpl")
+        rendered = tpl.render(name=name, rendered_funcs=rendered_funcs)
         return rendered
 
     def render_module(self, functions, rendered_funcs):
         func_dict = self.render_func_dict(functions.name, rendered_funcs)
-        tpl = Template(
-            textwrap.dedent(
-                """
-            \"\"\"
-            {{ header }}
-            \"\"\"
-
-            {{ comment }}
-
-            import numpy
-            {% if boys %}
-            from pysisyphus.wavefunction.ints.boys import boys
-            {% endif %}
-
-            {% for ai in add_imports  %}
-            {{ ai }}
-            {% endfor %}
-
-            {% for func in funcs %}
-            {{ func.text }}
-            {% endfor %}
-
-            {{ func_dict }}
-        """
-            ),
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
-
+        tpl = self.env.get_template("py_module.tpl")
         rendered = tpl.render(
             header=functions.header,
             comment=functions.comment,
@@ -135,7 +68,6 @@ class PythonRenderer(Renderer):
             funcs=rendered_funcs,
             func_dict=func_dict,
         )
-        rendered = textwrap.dedent(rendered)
         try:
             import black
 

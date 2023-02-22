@@ -4,6 +4,8 @@ from pathlib import Path
 import time
 from typing import Tuple
 
+from jinja2 import Environment, PackageLoader, select_autoescape
+
 from sympleints.Functions import Functions
 from sympleints.helpers import func_name_from_Ls, shell_shape, shell_shape_iter
 
@@ -16,12 +18,19 @@ class RenderedFunction:
 
 
 class Renderer(abc.ABC):
+    env = Environment(
+        loader=PackageLoader("sympleints"),
+        # We proably don't need autoescape...
+        autoescape=select_autoescape(),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+
     def shell_shape_iter(self, *args, **kwargs):
         return shell_shape_iter(*args, **kwargs)
 
     @abc.abstractmethod
     def render_function(
-        # self, repls, reduced, shape, shape_iter, args, name, doc_str="", **kwargs
         self,
         functions,
         repls,
