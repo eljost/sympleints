@@ -445,14 +445,12 @@ def run():
     C, C_map = get_map("C", center_C)
     D, D_map = get_map("D", center_D)
 
-    # function_getter = get_functions_getter()
     integral_gen = integral_gen_getter(
         contr_coeffs=contr_coeffs,
         sph=sph,
         norm_pgto=norm_pgto,
         cse_kwargs=cse_kwargs,
     )
-    # write_render = get_write_render(out_dir=out_dir, header=header)
     py_renderer = PythonRenderer()
     f_renderer = FortranRenderer()
 
