@@ -918,14 +918,6 @@ def run():
             spherical=sph,
         )
         render_write(int3c2e_funcs)
-        # write_render(
-        # _3center2el_ints_Ls,
-        # (ax, da, A, bx, db, B, cx, dc, C),
-        # "_3center2el3d_sph",
-        # _3center2el_doc_func,
-        # c=False,
-        # py_kwargs={"add_imports": boys_import},
-        # )
 
     #################################
     # Four-center overlap integrals #
@@ -994,8 +986,6 @@ def run():
         keys = funcs.keys()
     elif any(negate_keys := [key[1:] for key in keys if "~" in key]):
         keys = [key for key in funcs.keys() if key not in negate_keys]
-        # org_keys = funcs.keys()
-        # keys = [key for func]
 
     for ngk in negate_keys:
         print(f"Skipping generation of '{ngk}'.")

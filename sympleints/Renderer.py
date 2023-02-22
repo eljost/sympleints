@@ -88,7 +88,6 @@ class Renderer(abc.ABC):
             functions,
             rendered_funcs,
         )
-        #
         return module
 
     def write(self, out_dir, name, text):
