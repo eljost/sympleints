@@ -44,8 +44,6 @@ class Renderer(abc.ABC):
         pass
 
     def render_functions(self, functions: Functions):
-        # ls_exprs, args, base_name, doc_func, add_imports=None):
-
         args = functions.full_args
         ncomponents = functions.ncomponents
 
@@ -63,7 +61,6 @@ class Renderer(abc.ABC):
                 doc_str = ""
             doc_str += "Generated code; DO NOT modify by hand!"
             name = func_name_from_Ls(functions.name, L_tots)
-            # func_map.append((L_tots, name))
             print(f"Rendering {self.language} code for '{name}' ... ", end="")
             start = time.time()
             func = self.render_function(

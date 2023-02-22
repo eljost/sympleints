@@ -267,8 +267,16 @@ def integral_gen_for_L(
     )
 
     # Common subexpression elimination
+    _cse_kwargs = cse_kwargs.copy()
+    # 'optimizations': 'basic' becomes too slow for higher angular momenta, at least
+    # for 3-center integrals.
+    if (max(Ls) > 3) or ((len(Ls) > 2) and max(Ls) > 2):
+        try:
+            del _cse_kwargs["optimizations"]
+        except KeyError:
+            pass
     with get_timer("common subexpression elimination") as t:
-        repls, reduced = cse(list(exprs), order="none", **cse_kwargs)
+        repls, reduced = cse(list(exprs), order="none", **_cse_kwargs)
 
     # Replacement expressions, used to form the reduced expressions.
     with get_timer("simplifying & evaluating RHS") as t:
