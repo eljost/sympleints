@@ -824,11 +824,11 @@ def run():
             ),
             (l_aux_max, l_aux_max),
             (ax, bx),
-            "_2center2el3d",
+            "int2c2e",
             (A_map, B_map),
         )
         _2c2e_funcs = Functions(
-            name="int2c2e",  # Fortran does not like _2...
+            name="int2c2e3d",  # Fortran does not like _2...
             l_max=l_aux_max,
             coeffs=[da, db],
             exponents=[ax, bx],
@@ -902,11 +902,11 @@ def run():
             ),
             (l_max, l_max, l_aux_max),
             (ax, bx, cx),
-            "_3center2el3d_sph",
+            "int3c2e3d_sph",
             (A_map, B_map, C_map),
         )
         int3c2e_funcs = Functions(
-            name="int3c2e",  # Fortran does not like _2...
+            name="int3c2e3d_sph",  # Fortran does not like _2...
             l_max=l_aux_max,
             coeffs=[da, db, dc],
             exponents=[ax, bx, cx],

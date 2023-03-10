@@ -100,6 +100,61 @@ class FortranRenderer(Renderer):
             )
         return rendered
 
+    """
+    def render_function(
+        self, functions, repls, reduced, shape, shape_iter, args, name, doc_str=""
+    ):
+        # This allows using the 'boys' function without producing an error
+        print_settings = {
+            "allow_unknown_functions": True,
+            # Without disabling contract some expressions will raise ValueError.
+            "contract": False,
+            "standard": 2008,
+            "source_format": "free",
+        }
+        print_func = FCodePrinterMod(print_settings).doprint
+        assignments = [Assignment(lhs, rhs) for lhs, rhs in repls]
+        repl_lines = [print_func(as_) for as_ in assignments]
+        results = [print_func(red) for red in reduced]
+        res_len = len(reduced)
+        results_iter = zip(shape_iter, results)
+
+        tmps = [lhs for lhs, rhs in repls]
+        from sympy import IndexedBase
+        tmp = IndexedBase('tmp', shape=len(tmps))
+        map_ = {}
+        for i, rhs_ in enumerate(tmps, 1):
+            map_[rhs_] = tmp[i - 1]
+        rhs_subs = list()
+        for _, rhs in repls:
+            rhs_subs.append(rhs.subs(map_))
+        red_subs = list()
+        for red in reduced:
+            red_subs.append(red.subs(map_))
+        results_sub = [print_func(red) for red in red_subs]
+        results_iter = zip(shape_iter, results_sub)
+        repl_rhss = [print_func(rhs) for rhs in rhs_subs]
+        doc_str = make_fortran_comment(doc_str)
+        arg_declaration = self.get_argument_declaration(functions)
+
+        tpl = self.env.get_template("fortran_function_arr.tpl")
+        rendered = tpl.render(
+                name=name,
+                args=functions.full_args,
+                doc_str=doc_str,
+                arg_declaration=arg_declaration,
+                res_name=self.res_name,
+                res_len=res_len,
+                assignments=assignments,
+                repl_lines=repl_lines,
+                results_iter=results_iter,
+                reduced=reduced,
+                kind=self.real_kind,
+                repl_rhs=repl_rhss,
+            )
+        return rendered
+    """
+
     def render_f_init(self, name, rendered_funcs, func_array_name="func_array"):
         tpl = self.env.get_template("fortran_init.tpl")
         f_init = tpl.render(

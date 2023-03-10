@@ -28,3 +28,15 @@ logger.addHandler(stdout_handler)
 file_handler = logging.FileHandler("sympleints.log", mode="w", delay=True)
 file_handler.setFormatter(StripFormatter())
 logger.addHandler(file_handler)
+
+
+bench_logger = logging.getLogger("symplebench")
+bench_logger.setLevel(logging.DEBUG)
+
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(logging.INFO)
+bench_logger.addHandler(stdout_handler)
+
+file_handler = logging.FileHandler("symplebench.log", mode="w", delay=True)
+file_handler.setFormatter(StripFormatter())
+bench_logger.addHandler(file_handler)
