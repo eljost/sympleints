@@ -105,6 +105,7 @@ def run_benchmark(
             sys.stdout.flush()
     # Outside tmp_dir context mananger
     df = pd.DataFrame(np.concatenate(macro_data))
+    df.set_index(["La", "Lb"], inplace=True)
     return df
 
 
@@ -128,6 +129,24 @@ def mpl_plot_all_data(key, all_data):
     return fig
 
 
+def prepare_data(key, dfs):
+    df = pd.concat(dfs, axis=1)
+    df.to_csv(f"{key}_df.csv")
+    grouped = df.groupby(["La", "Lb"])
+    mean = grouped.mean()
+    # sem = grouped.sem()
+    sem = grouped.std()
+    iter_slice = pd.IndexSlice[:, "iter"]
+    iter_means = mean.loc[:, iter_slice]#pd.IndexSlice[:, "iter"]]
+    iter_sem = sem.loc[:, iter_slice]#pd.IndexSlice[:, it]]
+    fig, ax = plt.subplots(figsize=(16, 8))
+    iter_means.plot.bar(yerr=iter_sem, ax=ax)
+    ax.set_xlabel("Angular momenta")
+    ax.set_ylabel("t per iteration / s")
+    fig.tight_layout()
+    fig.savefig(f"{key}.png")
+    fig.savefig(f"{key}.pdf")
+
 def plo_plot_all_data(key, dfs):
     ploplt.clear_figure()
     ploplt.plot_size(0.85 * ploplt.tw(), ploplt.th() / 2)
@@ -148,6 +167,7 @@ def plo_plot_all_data(key, dfs):
         ploplt.scatter(xs, mean["iter"].array, label=lbl)
         iter_series.append(mean["iter"])
         all_flags.append(flags)
+    import pdb; pdb.set_trace()  # fmt: skip
     iter_df = pd.concat(iter_series, axis=1, keys=all_flags)
     logger.info(f"{key}, {flags}:")
     logger.info(iter_df.to_string())
@@ -247,8 +267,9 @@ def run():
         )
         # fig = mpl_plot_all_data(key, all_data)
         # fig.savefig(f"{key}.png")
-        fig = plo_plot_all_data(key, dfs)
-        ploplt.save_fig((cwd / f"{key}.html").absolute())
+        prepare_data(key, dfs)
+        # fig = plo_plot_all_data(key, dfs)
+        # ploplt.save_fig((cwd / f"{key}.html").absolute())
 
 
 if __name__ == "__main__":
