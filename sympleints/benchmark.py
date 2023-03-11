@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 from jinja2 import Environment, PackageLoader
 import matplotlib.pyplot as plt
@@ -19,13 +20,10 @@ try:
 except ModuleNotFoundError:
     pass
 
-
-sns.set_theme()
-
-
 from sympleints import bench_logger as logger
 
 
+sns.set_theme()
 pd.set_option("display.float_format", "{:12.6e}".format)
 
 
@@ -45,7 +43,7 @@ _KEYS = {
 BOYS_KEYS = {
     "coul": ("coulomb3d", 1),
     "2c2e": ("int2c2e3d", 1),
-    # "3c2e_sph": ("int3c2e3d_sph", -1),
+    "3c2e_sph": ("int3c2e3d_sph", -1),
 }
 KEYS = _KEYS | BOYS_KEYS
 NEED_BOYS = list([k for _, (k, _) in BOYS_KEYS.items()])
@@ -60,7 +58,8 @@ def compile(cwd, srcs, flags=None):
     srcs = map(str, srcs)
     args = f"gfortran {flags} {' '.join(srcs)}"
     _ = subprocess.check_output(args, cwd=cwd, shell=True, text=True)
-    assert _ == ""
+    assert _ == ""  # Check return code
+    return args
 
 
 def run_benchmark(
@@ -76,13 +75,20 @@ def run_benchmark(
 ):
     is_spherical_f = ".true." if is_spherical else ".false."
     need_boys = key in NEED_BOYS
+    if ncomponents < 0:
+        ndim = 3
+    else:
+        ndim = 2
+    angmoms = ["La", "Lb", "Lc"][:ndim]
+    angmom_fields = [(am, "i1") for am in angmoms]
     src = TPL.render(
         lmax=lmax,
-        lauxmax=-1,
+        lauxmax=lauxmax,
         nprims=nprims,
         niters=niters,
         is_spherical=is_spherical_f,
         ncomponents=ncomponents,
+        ndim=ndim,
         key=key,
         need_boys=need_boys,
     )
@@ -104,33 +110,43 @@ def run_benchmark(
             ] + srcs
 
         logger.info(f"starting compilation of '{id_}'")
-        compile(tmp_path, srcs, flags=flags)
+        compile_cmd = compile(tmp_path, srcs, flags=flags)
         logger.info("finished compilation")
+
+        # Dump benchmark file with compile cmd in first line 
+        with open(f_fn, "w") as handle:
+            handle.write("\n\n".join((f"! {compile_cmd}", src)))
 
         for i in range(nmacro_iters):
             logger.info(f"starting run {i}/{nmacro_iters} of '{id_}' ... ")
+            start = time.time()
             data = subprocess.check_output(
                 "./a.out", cwd=tmp_path, shell=True, text=True
             )
+            dur = time.time() - start
+            logger.info(f"\t ... the run took {dur:12.6e} s.")
             arr = np.array(data.strip().split(), dtype=float).reshape(
-                -1, 4
+                -1, ndim + 2
             )  # Wont work for 3center!
+            # angmom_fields = [("La", "i1"), ("Lb", "i1"), ("Lc", "i1")][:ndim]
             sarr = np.array(
                 list(zip(*arr.T)),
-                dtype=[("La", "i1"), ("Lb", "i1"), ("tot", "f8"), ("iter", "f8")],
+                dtype=[*angmom_fields, ("tot", "f8"), ("iter", "f8")],
             )
             macro_data.append(sarr)
             sys.stdout.flush()
+
     # Outside tmp_dir context mananger
     df = pd.DataFrame(np.concatenate(macro_data))
-    df.set_index(["La", "Lb"], inplace=True)
+    df.set_index(angmoms, inplace=True)
     return df
 
 
-def pandas_plot(key, dfs):
+def pandas_plot(key, dfs, ndim):
     df = pd.concat(dfs, axis=1)
     df.to_csv(f"{key}_df.csv")
-    grouped = df.groupby(["La", "Lb"])
+    gby = ["La", "Lb"] + ([] if ndim == 2 else ["Lc"])
+    grouped = df.groupby(gby)
     mean = grouped.mean()
     std = grouped.std()
     iter_slice = pd.IndexSlice[:, "iter"]
@@ -138,12 +154,14 @@ def pandas_plot(key, dfs):
     iter_std = std.loc[:, iter_slice]
     fig, ax = plt.subplots(figsize=(16, 8))
     iter_means.plot.bar(yerr=iter_std, ax=ax)
+    min_means = iter_means.min(axis=1)
+    max_means = iter_means.max(axis=1)
+    for i, (_, iter_time) in enumerate(min_means.items()):
+        ax.annotate(f"{iter_time:.4e}", xy=(i, 1.05 * max_means.values[i]), ha="center")
     ax.set_xlabel("Angular momenta")
     ax.set_ylabel("t per iteration / s")
     ax.set_title(key)
-    fig.tight_layout()
-    fig.savefig(f"{key}.png")
-    fig.savefig(f"{key}.pdf")
+    return fig
 
 
 def plo_plot_all_data(key, dfs):
@@ -156,7 +174,7 @@ def plo_plot_all_data(key, dfs):
     for i, (flags, df) in enumerate(dfs.items()):
         grouped = df.groupby(["La", "Lb"])
         mean = grouped.mean()
-        sem = grouped.sem()
+        # sem = grouped.sem()
         if label is None:
             label = list(mean["tot"].keys())
         xs = nflags * np.arange(len(label)) + (i % nflags)
@@ -166,7 +184,6 @@ def plo_plot_all_data(key, dfs):
         ploplt.scatter(xs, mean["iter"].array, label=lbl)
         iter_series.append(mean["iter"])
         all_flags.append(flags)
-    import pdb; pdb.set_trace()  # fmt: skip
     iter_df = pd.concat(iter_series, axis=1, keys=all_flags)
     logger.info(f"{key}, {flags}:")
     logger.info(iter_df.to_string())
@@ -188,31 +205,19 @@ def plo_plot_all_data(key, dfs):
     return fig
 
 
-def run_key(key, ncomponents, lmax, is_spherical, niters, nprims, custom_flags=None):
-    if custom_flags is None:
-        custom_flags = []
+def run_key(
+    key, ncomponents, lmax, lauxmax, is_spherical, niters, nprims, flag_lists,
 
-    flags = [
-        ["-O2", "-O3", "-Ofast"],
-        [
-            "",
-            "-march=skylake",
-        ],
-        # ["", "-ftree-vectorize"],
-    ]
-
-    flag_prods = list(it.product(*flags))
-    all_flags = flag_prods + custom_flags
-
+):
     dfs = dict()
-    for flags in all_flags:
+    for flags in it.product(*flag_lists):
         flags_key = ", ".join(flags)
 
         df = run_benchmark(
             key,
             ncomponents=ncomponents,
             lmax=lmax,
-            lauxmax=-1,
+            lauxmax=lauxmax,
             is_spherical=is_spherical,
             niters=niters,
             nprims=nprims,
@@ -228,13 +233,16 @@ def parse_args(args):
     parser.add_argument("--niters", type=int, default=250_000)
     parser.add_argument("--nprims", type=int, default=6)
     parser.add_argument("--lmax", type=int, default=2)
+    parser.add_argument("--lauxmax", type=int, default=2)
     parser.add_argument("--is_spherical", action="store_true")
+    parser.add_argument("--skip-3d", action="store_true")
     parser.add_argument(
         "--keys",
         nargs="+",
         help=f"Benchmark only certain integrals. Possible keys are: {KEYS_STR}. "
         "If not given, all possible integrals are benchmarked.",
     )
+    parser.add_argument("--quick", action="store_true")
 
     return parser.parse_args(args)
 
@@ -243,28 +251,56 @@ def run():
     args = parse_args(sys.argv[1:])
 
     lmax = args.lmax
+    lauxmax = args.lauxmax
     is_spherical = False
     niters = args.niters
     nprims = args.nprims
     is_spherical = args.is_spherical
     keys = args.keys
+    skip3d = args.skip_3d
+    quick = args.quick
+
     cwd = Path(".")
 
     if keys is None:
         keys = KEYS.keys()
+    keys = list(keys)
+    if skip3d:
+        try:
+            keys.remove("3c2e_sph")
+        except ValueError:
+            print("No 3d integrals requested!")
+
+    flag_lists = [
+        ["-O2", "-O3", "-Ofast"],
+        [
+            "",
+            "-march=skylake",
+        ],
+    ]
+    if quick:
+        flag_lists = [["-O0"]]
 
     # Loop over different integral types
     for key_ in keys:
         key, ncomponents = KEYS[key_]
+        ndim = 2 if ncomponents > 0 else 3
         dfs = run_key(
             key,
             ncomponents=ncomponents,
             lmax=lmax,
+            lauxmax=lauxmax,
             is_spherical=is_spherical,
             niters=niters,
             nprims=nprims,
+            flag_lists=flag_lists,
         )
-        pandas_plot(key, dfs)
+        fig = pandas_plot(key, dfs, ndim)
+        for ext in ("pdf", "png"):
+            fig_fn = (cwd / f"{key}.{ext}").absolute()
+            fig.suptitle(fig_fn)
+            fig.tight_layout()
+            fig.savefig(fig_fn)
         # fig = plo_plot_all_data(key, dfs)
         # ploplt.save_fig((cwd / f"{key}.html").absolute())
 
