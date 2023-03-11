@@ -12,6 +12,7 @@ from jinja2 import Environment, PackageLoader
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 
 try:
     import plotext as ploplt
@@ -19,10 +20,13 @@ except ModuleNotFoundError:
     pass
 
 
+sns.set_theme()
+
+
 from sympleints import bench_logger as logger
 
 
-pd.set_option('display.float_format', '{:12.6e}'.format)
+pd.set_option("display.float_format", "{:12.6e}".format)
 
 
 ENV = Environment(
@@ -32,22 +36,28 @@ ENV = Environment(
 )
 TPL = ENV.get_template("fortran_bench.tpl")
 
-KEYS = {
+_KEYS = {
     "ovlp": ("ovlp3d", 1),
     "kin": ("kinetic3d", 1),
     "dpm": ("dipole3d", 3),
     "qpm": ("quadrupole3d", 6),
-    # "coul": ("coulomb3d", 1),
-    # "2c2e": ("int2c2e", 1),
-    # "3c2e_sph": ("int3c2e_sph", -1),
 }
+BOYS_KEYS = {
+    "coul": ("coulomb3d", 1),
+    "2c2e": ("int2c2e3d", 1),
+    # "3c2e_sph": ("int3c2e3d_sph", -1),
+}
+KEYS = _KEYS | BOYS_KEYS
+NEED_BOYS = list([k for _, (k, _) in BOYS_KEYS.items()])
 KEYS_STR = ", ".join(KEYS.keys())
+BOYS_PATH = Path("/home/johannes/tmp/409_meson3/fympleints/ints")
 
 
 def compile(cwd, srcs, flags=None):
     if flags is None:
         flags = list()
     flags = " ".join(flags)
+    srcs = map(str, srcs)
     args = f"gfortran {flags} {' '.join(srcs)}"
     _ = subprocess.check_output(args, cwd=cwd, shell=True, text=True)
     assert _ == ""
@@ -65,6 +75,7 @@ def run_benchmark(
     nmacro_iters=5,
 ):
     is_spherical_f = ".true." if is_spherical else ".false."
+    need_boys = key in NEED_BOYS
     src = TPL.render(
         lmax=lmax,
         lauxmax=-1,
@@ -73,6 +84,7 @@ def run_benchmark(
         is_spherical=is_spherical_f,
         ncomponents=ncomponents,
         key=key,
+        need_boys=need_boys,
     )
     id_ = f"{key} with flags: {flags}"
 
@@ -85,6 +97,12 @@ def run_benchmark(
         int_fn = f"{key}.f90"
         shutil.copy(int_fn, tmp_path)
         srcs = [int_fn, f_fn]
+        if need_boys:
+            srcs = [
+                BOYS_PATH / "boys_data.f90",
+                BOYS_PATH / "boys.f90",
+            ] + srcs
+
         logger.info(f"starting compilation of '{id_}'")
         compile(tmp_path, srcs, flags=flags)
         logger.info("finished compilation")
@@ -109,43 +127,24 @@ def run_benchmark(
     return df
 
 
-def mpl_plot_all_data(key, all_data):
-    fig, ax = plt.subplots()
-    label = None
-    for flags, data in all_data.items():
-        *_, tot_times, iter_times = data.T
-        if label is None:
-            label = list(zip(*np.array(_, dtype=int)))
-            xs = np.arange(len(label))
-        ax.plot(xs, tot_times, "o", label=f"tot: '{flags}'")
-    ax.set_xticks(xs)
-    ax.set_xticklabels(label, rotation="vertical")
-    ax.set_xlabel("L")
-    ax.set_ylabel("tot time / s")
-    ax.legend()
-    ax.set_title(key)
-    fig.tight_layout()
-    # plt.show()
-    return fig
-
-
-def prepare_data(key, dfs):
+def pandas_plot(key, dfs):
     df = pd.concat(dfs, axis=1)
     df.to_csv(f"{key}_df.csv")
     grouped = df.groupby(["La", "Lb"])
     mean = grouped.mean()
-    # sem = grouped.sem()
-    sem = grouped.std()
+    std = grouped.std()
     iter_slice = pd.IndexSlice[:, "iter"]
-    iter_means = mean.loc[:, iter_slice]#pd.IndexSlice[:, "iter"]]
-    iter_sem = sem.loc[:, iter_slice]#pd.IndexSlice[:, it]]
+    iter_means = mean.loc[:, iter_slice]
+    iter_std = std.loc[:, iter_slice]
     fig, ax = plt.subplots(figsize=(16, 8))
-    iter_means.plot.bar(yerr=iter_sem, ax=ax)
+    iter_means.plot.bar(yerr=iter_std, ax=ax)
     ax.set_xlabel("Angular momenta")
     ax.set_ylabel("t per iteration / s")
+    ax.set_title(key)
     fig.tight_layout()
     fig.savefig(f"{key}.png")
     fig.savefig(f"{key}.pdf")
+
 
 def plo_plot_all_data(key, dfs):
     ploplt.clear_figure()
@@ -265,9 +264,7 @@ def run():
             niters=niters,
             nprims=nprims,
         )
-        # fig = mpl_plot_all_data(key, all_data)
-        # fig.savefig(f"{key}.png")
-        prepare_data(key, dfs)
+        pandas_plot(key, dfs)
         # fig = plo_plot_all_data(key, dfs)
         # ploplt.save_fig((cwd / f"{key}.html").absolute())
 
