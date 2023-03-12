@@ -1,7 +1,7 @@
 import functools
 
 from sympleints import shell_iter
-from sympleints.defs import Multipole1d, TwoCenter1d
+from sympleints.defs import Multipole1d, RecurStrategy, Strategy, TwoCenter1d
 
 
 class Overlap1d(Multipole1d):
@@ -15,9 +15,6 @@ class Overlap1d(Multipole1d):
 class Kinetic1d(TwoCenter1d):
     @functools.cache
     def __call__(self, i, j):
-        if i < 0 or j < 0:
-            return 0
-
         def recur_rel(i, j, X):
             return X * self(i, j) + 1 / (2 * self.p) * (
                 i * self(i - 1, j) + j * self(i, j - 1)
@@ -26,23 +23,25 @@ class Kinetic1d(TwoCenter1d):
         def recur_ovlp(i, j):
             return Overlap1d(self.ax, self.A, self.bx, self.B)(i, j)
 
-        # Base case
-        if i == 0 and j == 0:
+        def base_case():
             return (
                 self.ax - 2 * self.ax**2 * (self.PA**2 + 1 / (2 * self.p))
             ) * recur_ovlp(0, 0)
-        # Decrement i
-        elif i > 0:
+
+        def vrr_bra(i, j):
             # Eq. (9.3.41)
-            return recur_rel(i - 1, j, self.PA) + self.bx / self.p * (
-                2 * self.ax * recur_ovlp(i, j) - (i-1) * recur_ovlp(i - 2, j)
+            return recur_rel(i, j, self.PA) + self.bx / self.p * (
+                2 * self.ax * recur_ovlp(i + 1, j) - (i) * recur_ovlp(i - 1, j)
             )
-        # Decrement j
-        elif j > 0:
-            # Eq. (9.3.41)
-            return recur_rel(i, j - 1, self.PB) + self.ax / self.p * (
-                2 * self.bx * recur_ovlp(i, j) - (j-1) * recur_ovlp(i, j - 2)
+
+        def vrr_ket(i, j):
+            # Eq. (9.3.42)
+            return recur_rel(i, j, self.PB) + self.ax / self.p * (
+                2 * self.bx * recur_ovlp(i, j + 1) - (j) * recur_ovlp(i, j - 1)
             )
+
+        strategy = RecurStrategy(base_case, (vrr_bra, vrr_ket), Strategy.HIGHEST)
+        return strategy.recur(i, j)
 
 
 def gen_kinetic_3d(La, Lb, a, b, A, B):
@@ -53,7 +52,5 @@ def gen_kinetic_3d(La, Lb, a, b, A, B):
 
 def gen_kinetic_shell(La_tot, Lb_tot, a, b, A, B):
     lmns = list(shell_iter((La_tot, Lb_tot)))
-    exprs = [
-        gen_kinetic_3d(La, Lb, a, b, A, B) for La, Lb in lmns
-    ]
+    exprs = [gen_kinetic_3d(La, Lb, a, b, A, B) for La, Lb in lmns]
     return exprs, lmns

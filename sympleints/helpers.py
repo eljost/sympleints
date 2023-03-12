@@ -1,9 +1,35 @@
+import enum  # from enum import Enum
+import functools
 import itertools as it
 import sys
 import time
 
 from colorama import Fore, Style
 from sympy import IndexedBase, Matrix, Symbol
+
+from sympleints.config import L_MAX, L_AUX_MAX
+
+
+L_MAP = {
+    0: "s",
+    1: "p",
+    2: "d",
+    3: "f",
+    4: "g",
+    5: "h",
+    6: "i",
+    7: "j",
+    8: "k",
+}
+
+
+@functools.total_ordering
+class BFKind(enum.Enum):
+    CART = enum.auto()
+    SPH = enum.auto()
+
+    def __lt__(self, other):
+        return self.value < other.value
 
 
 RST = Style.RESET_ALL  # colorama reset
@@ -19,9 +45,34 @@ def canonical_order(L):
     return inds
 
 
-def shell_iter(Ls):
-    """Iterator over cartesian product of L values in Ls."""
-    return it.product(*[canonical_order(L) for L in Ls])
+def sph_order(L):
+    # m from -L, -L + 1, ..., 0, 1, ..., L
+    return [(L, m) for m in range(-L, L + 1)]
+
+
+def get_order_funcs_for_kinds(kinds):
+    func_map = {
+        BFKind.CART: canonical_order,
+        BFKind.SPH: sph_order,
+    }
+    return [func_map[kind] for kind in kinds]
+
+
+def cart_label(angmoms):
+    assert len(angmoms) == 3
+    L = L_MAP[sum(angmoms)]
+    cart_inds = it.chain(*[[c] * l for l, c in zip(angmoms, ("x", "y", "z")) if l > 0])
+    label = str(L) + "".join(map(str, cart_inds))
+    return label
+
+
+def shell_iter(Ls, kinds=None):
+    """Iterator over angular momenta/quantum number products."""
+    if kinds is None:
+        kinds = [BFKind.CART] * len(Ls)
+    assert len(kinds) == len(Ls)
+    funcs = get_order_funcs_for_kinds(kinds)
+    return it.product(*[func(L) for func, L in zip(funcs, Ls)])
 
 
 def shell_shape(Ls, ncomponents: int = 0, cartesian=True):
@@ -31,7 +82,7 @@ def shell_shape(Ls, ncomponents: int = 0, cartesian=True):
         size = lambda L: 2 * L + 1
     shape = tuple(map(size, Ls))
     if ncomponents > 0:
-        shape = (ncomponents, ) + shape
+        shape = (ncomponents,) + shape
     return shape
 
 
@@ -85,4 +136,5 @@ class Timer:
 def get_timer_getter(**kwargs):
     def get_timer(*args):
         return Timer(*args, **kwargs)
+
     return get_timer

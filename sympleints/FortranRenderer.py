@@ -9,17 +9,43 @@ from sympleints.Renderer import Renderer
 from sympleints.helpers import shell_shape_iter
 
 
+def format_with_fprettify(fortran: str):
+    try:
+        import fprettify
+    except ModuleNotFoundError:
+        print("Skipped formatting with fprettify, as it is not installed!")
+        return fortran
+
+    try:
+        fp = tempfile.NamedTemporaryFile("w", delete=False)
+        fp.write(fortran)
+        fp.close()
+        fprettify.reformat_inplace(fp.name)
+        with open(fp.name) as handle:
+            fortran_formatted = handle.read()
+        os.remove(fp.name)
+        print("\t ... formatted Fortran code with fprettify")
+    except fprettify.FprettifyException as _:
+        print("Error while running fprettify. Dumping nontheless.")
+        fortran_formatted = fortran
+    return fortran_formatted
+
+
 class FCodePrinterMod(FCodePrinter):
-    boys_re = re.compile("boys\(([d\d\.]+),(.+)")
+    boys_re = re.compile(r"boys\(([d\d\.]+),(.+)")
 
     def _print_Function(self, expr):
         func = super()._print_Function(expr)
+        # Sympy prints everything as float (1.0d0, 2.0d0 etc.), even integers, but the
+        # first argument 'n' to the Boys function must be integer.
         if func.startswith("boys"):
-            mobj = self.boys_re.match(func)
-            as_float = float(mobj.group(1).lower().replace("d", "e"))
-            as_int = int(as_float)
-            remainder = mobj.group(2)
-            func = f"boys({as_int},{remainder}"
+            # Only try to fix calls to the Boys function when a double is present
+            if mobj := self.boys_re.match(func):
+                as_float = float(mobj.group(1).lower().replace("d", "e"))
+                as_int = int(as_float)
+                assert abs(as_float - as_int) <= 1e-14
+                remainder = mobj.group(2)
+                func = f"boys({as_int},{remainder}"
         return func
 
     def _print_Indexed(self, expr):
@@ -27,13 +53,18 @@ class FCodePrinterMod(FCodePrinter):
         inds = [self._print(i + 1) for i in expr.indices]
         return "%s(%s)" % (self._print(expr.base.label), ", ".join(inds))
 
+    def _print_IndexedSlice(self, expr):
+        start = expr.start_index + 1
+        # end_index is exclusive; Fortran end indices are inclusive.
+        stop = expr.end_index + 1
+        return f"{expr.org_name}({start}:{stop})"
+
 
 def make_fortran_comment(comment_str):
     return "".join([f"! {line}\n" for line in comment_str.strip().split("\n")])
 
 
 class FortranRenderer(Renderer):
-
     ext = ".f90"
     real_kind = "kind=real64"
     res_name = "res"
@@ -86,18 +117,18 @@ class FortranRenderer(Renderer):
 
         tpl = self.env.get_template("fortran_function.tpl")
         rendered = tpl.render(
-                name=name,
-                args=functions.full_args,
-                doc_str=doc_str,
-                arg_declaration=arg_declaration,
-                res_name=self.res_name,
-                res_len=res_len,
-                assignments=assignments,
-                repl_lines=repl_lines,
-                results_iter=results_iter,
-                reduced=reduced,
-                kind=self.real_kind,
-            )
+            name=name,
+            args=functions.full_args,
+            doc_str=doc_str,
+            arg_declaration=arg_declaration,
+            res_name=self.res_name,
+            res_len=res_len,
+            assignments=assignments,
+            repl_lines=repl_lines,
+            results_iter=results_iter,
+            reduced=reduced,
+            kind=self.real_kind,
+        )
         return rendered
 
     """

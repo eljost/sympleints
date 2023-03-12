@@ -60,11 +60,10 @@ from sympleints import (
     canonical_order,
     get_center,
     get_map,
-    logger,
     shell_iter,
     get_timer_getter,
 )
-from sympleints.config import L_MAX, L_AUX_MAX, L_MAP
+from sympleints.config import L_MAX, L_AUX_MAX
 from sympleints.defs.coulomb import (
     CoulombShell,
     TwoCenterTwoElectronShell,
@@ -74,14 +73,13 @@ from sympleints.defs.coulomb import (
 from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
 from sympleints.symbols import center_R, R, R_map
 
-# from sympleints.defs.gto import CartGTOShell
-# from sympleints.defs.gto import CartGTOv2Shell as CartGTOShell
-from sympleints.defs.gto import gen_gto3d_shell  # CartGTOv2Shell as CartGTOShell
+from sympleints.defs.gto import gen_gto3d_shell
 from sympleints.defs.kinetic import gen_kinetic_shell
 from sympleints.defs.multipole import gen_diag_quadrupole_shell, gen_multipole_shell
 from sympleints.defs.overlap import gen_overlap_shell
 from sympleints.FortranRenderer import FortranRenderer
 from sympleints.Functions import Functions
+from sympleints.helpers import L_MAP
 from sympleints.PythonRenderer import PythonRenderer
 
 try:
@@ -183,7 +181,8 @@ def get_pgto_normalization(L_tots, exponents):
 def apply_to_components(exprs, components, func):
     """Apply function func to cexprs in components of exprs.
 
-    For n components the order (cexprs_0, cexprs_1, ..., cexprs_n) in exprs is expected."""
+    For n components the order (cexprs_0, cexprs_1, ..., cexprs_n) in exprs is expected.
+    """
     nexprs = len(exprs)
     nexprs_per_component = nexprs // components
     mod_exprs = list()
@@ -519,7 +518,7 @@ def run():
             (l_max, l_max),
             (ax, bx),
             "self_ovlp3d",
-            (A_map, ),
+            (A_map,),
             L_iter=[(L, L) for L in range(l_max + 1)],
             # Only keep the diagonal elements where all quantum numbers are identical.
             filter_func=lambda nlma, nlmb: nlma == nlmb,

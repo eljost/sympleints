@@ -1,8 +1,10 @@
 from sympy import exp
 
+from sympleints.symbols import R
+
 
 class TwoCenter1d:
-    def __init__(self, ax, A, bx, B, R=None):
+    def __init__(self, ax, A, bx, B, R=R):
         self.ax = ax
         self.A = A
         self.bx = bx
