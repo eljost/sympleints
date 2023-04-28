@@ -7,8 +7,6 @@ import time
 from colorama import Fore, Style
 from sympy import IndexedBase, Matrix, Symbol
 
-from sympleints.config import L_MAX, L_AUX_MAX
-
 
 L_MAP = {
     0: "s",
@@ -75,11 +73,19 @@ def shell_iter(Ls, kinds=None):
     return it.product(*[func(L) for func, L in zip(funcs, Ls)])
 
 
+def cart_size(L):
+    return (L + 2) * (L + 1) // 2
+
+
+def sph_size(L):
+    return 2 * L + 1
+
+
 def shell_shape(Ls, ncomponents: int = 0, cartesian=True):
     if cartesian:
-        size = lambda L: (L + 2) * (L + 1) // 2
+        size = cart_size
     else:  # Spherical
-        size = lambda L: 2 * L + 1
+        size = sph_size
     shape = tuple(map(size, Ls))
     if ncomponents > 0:
         shape = (ncomponents,) + shape

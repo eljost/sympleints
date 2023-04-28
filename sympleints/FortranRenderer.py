@@ -25,7 +25,7 @@ def format_with_fprettify(fortran: str):
             fortran_formatted = handle.read()
         os.remove(fp.name)
         print("\t ... formatted Fortran code with fprettify")
-    except fprettify.FprettifyException as _:
+    except fprettify.FprettifyException:
         print("Error while running fprettify. Dumping nontheless.")
         fortran_formatted = fortran
     return fortran_formatted
@@ -279,7 +279,7 @@ class FortranRenderer(Renderer):
                     rendered = handle.read()
                 os.remove(fp.name)
                 print("\t ... formatted Fortran code with fprettify")
-            except fprettify.FprettifyException as err:
+            except fprettify.FprettifyException:
                 print("Error while running fprettify. Dumping nontheless.")
                 rendered = rendered_backup
         except ModuleNotFoundError:

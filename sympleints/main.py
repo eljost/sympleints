@@ -71,7 +71,8 @@ from sympleints.defs.coulomb import (
     # ThreeCenterTwoElectronShell,
     ThreeCenterTwoElectronSphShell,
 )
-from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
+
+# from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
 from sympleints.symbols import center_R, R, R_map
 
 from sympleints.defs.gto import gen_gto3d_shell
@@ -237,10 +238,10 @@ def integral_gen_for_L(
     expect_nexprs = len(list(shell_iter(Ls)))
     # Actually create expressions by calling the passed function.
     # This is where the magic begins to happen!
-    with get_timer("expression generation") as t:
+    with get_timer("expression generation"):
         exprs, lmns = int_func(*Ls)
 
-    with get_timer("multiplying contraction coefficients") as t:
+    with get_timer("multiplying contraction coefficients"):
         contr_coeff_prod = functools.reduce(
             lambda di, dj: di * dj, contr_coeffs[: len(Ls)], 1
         )
@@ -250,7 +251,7 @@ def integral_gen_for_L(
     components = nexprs // expect_nexprs
 
     if normalization == Normalization.PGTO:
-        with get_timer("multiplying GTO normalization factors") as t:
+        with get_timer("multiplying GTO normalization factors"):
             pgto_norms = get_pgto_normalization(Ls, exponents)
             exprs = apply_to_components(
                 exprs,
@@ -258,7 +259,7 @@ def integral_gen_for_L(
                 lambda cexprs: [norm * expr for norm, expr in zip(pgto_norms, cexprs)],
             )
     elif normalization == Normalization.CGTO:
-        with get_timer("multiplying lmn CGTO normalization factors") as t:
+        with get_timer("multiplying lmn CGTO normalization factors"):
             lmn_factors = get_lmn_factors(Ls)
             exprs = apply_to_components(
                 exprs,
@@ -268,7 +269,7 @@ def integral_gen_for_L(
 
     # Maybe do this later, after the CSE?
     if sph:
-        with get_timer("Cartesian to spherical conversion") as t:
+        with get_timer("Cartesian to spherical conversion"):
             exprs = apply_to_components(
                 exprs, components, lambda cexprs: cart2spherical(Ls, cexprs)
             )
@@ -296,11 +297,11 @@ def integral_gen_for_L(
             del _cse_kwargs["optimizations"]
         except KeyError:
             pass
-    with get_timer("common subexpression elimination") as t:
+    with get_timer("common subexpression elimination"):
         repls, reduced = cse(list(exprs), order="none", **_cse_kwargs)
 
     # Replacement expressions, used to form the reduced expressions.
-    with get_timer("simplifying & evaluating RHS") as t:
+    with get_timer("simplifying & evaluating RHS"):
         for i, (lhs, rhs) in enumerate(repls):
             rhs = simplify(rhs)
             rhs = rhs.evalf(PREC)
@@ -309,7 +310,7 @@ def integral_gen_for_L(
             repls[i] = (lhs, rhs)
 
     # Reduced expression, i.e., the final integrals/expressions.
-    with get_timer("simplifying & evaluating LHS") as t:
+    with get_timer("simplifying & evaluating LHS"):
         for i, red in enumerate(reduced):
             red = simplify(red)
             red = red.evalf(PREC)

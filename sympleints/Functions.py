@@ -79,8 +79,8 @@ class Functions:
     def ndim(self):
         """Number of dimension in the final result array.
 
-        Equal to the number of basis functions. Incremented by one when multiple components
-        are returned, e.g. with linear moment integrals.
+        Equal to the number of basis functions. Incremented by one when multiple
+        components are returned, e.g. with linear moment integrals.
         """
         ndim = self.nbfs
         if self.ncomponents > 0:

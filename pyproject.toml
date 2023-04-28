@@ -7,3 +7,6 @@ write_to = "sympleints/version.py"
 
 [tool.pyright]
 exclude = ["tests/**"]
+
+[tool.ruff]
+ignore-init-module-imports = true

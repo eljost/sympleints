@@ -5,7 +5,6 @@ from sympleints.Renderer import Renderer
 
 
 class PythonRenderer(Renderer):
-
     ext = ".py"
     language = "Python"
 
@@ -30,12 +29,12 @@ class PythonRenderer(Renderer):
         assignments = [Assignment(lhs, rhs) for lhs, rhs in repls]
         py_lines = [print_func(as_) for as_ in assignments]
         result_lines = [print_func(red) for red in reduced]
-        # Here, we expect the orbital exponents and the contraction
-        # coefficients to be 2d/3d/... numpy arrays. Then we can utilize array broadcasting
+        # Here, we expect the orbital exponents and the contraction coefficients
+        # to be 2d/3d/... numpy arrays. Then we can utilize array broadcasting
         # to evalute the integrals over products of primitive basis functions.
         result_lines = [f"numpy.sum({line})" for line in result_lines]
-        # Drop ncomponents for simple integrals, as the python code can deal with contracted
-        # GTOs via array broadcasting.
+        # Drop ncomponents for simple integrals, as the python code can deal with
+        # contracted GTOs via array broadcasting.
         if functions.ncomponents == 1:
             shape = shape[1:]
             shape_iter = [shape[1:] for shape in shape_iter]
