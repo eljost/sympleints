@@ -28,6 +28,7 @@
 
 
 import argparse
+from enum import Enum
 
 from datetime import datetime
 import functools
@@ -63,7 +64,7 @@ from sympleints import (
     shell_iter,
     get_timer_getter,
 )
-from sympleints.config import L_MAX, L_AUX_MAX
+from sympleints.config import L_MAX, L_AUX_MAX, PREC
 from sympleints.defs.coulomb import (
     CoulombShell,
     TwoCenterTwoElectronShell,
@@ -103,13 +104,18 @@ KEYS = (
     "3c2e_sph",
 )
 ONE_THRESH = 1e-14
+Normalization = Enum("Normalization", ["PGTO", "CGTO", "NONE"])
+normalization_map = {
+    "pgto": Normalization.PGTO,
+    "cgto": Normalization.CGTO,
+    "none": Normalization.NONE,
+}
 
 
 if can_sph:
     # Pregenerate coefficients
     CART2SPH = cart2sph_coeffs(max(L_MAX, L_AUX_MAX) + 2, zero_small=True)
     NLMS = cart2sph_nlms(max(L_MAX, L_AUX_MAX) + 2)
-PREC = 16
 
 
 def cart2spherical(L_tots, exprs):
@@ -178,6 +184,23 @@ def get_pgto_normalization(L_tots, exponents):
     return exprs
 
 
+@functools.cache
+def lmn_factors(L):
+    """Angular momentum vector dependent part of the norm of a contracted GTO."""
+    lmn_factors = list()
+    for lmn in canonical_order(L):
+        lmn_factor = prod([factorial2(2 * am - 1) for am in lmn])
+        lmn_factor = 1 / sqrt(lmn_factor)
+        lmn_factors.append(lmn_factor)
+    return lmn_factors
+
+
+def get_lmn_factors(Ls):
+    all_lmn_factors = [lmn_factors(L) for L in Ls]
+    exprs = [prod(ns) for ns in it.product(*all_lmn_factors)]
+    return exprs
+
+
 def apply_to_components(exprs, components, func):
     """Apply function func to cexprs in components of exprs.
 
@@ -200,7 +223,7 @@ def integral_gen_for_L(
     name,
     maps,
     sph=False,
-    norm_pgto=False,
+    normalization=Normalization.NONE,
     cse_kwargs=None,
     filter_func=None,
 ):
@@ -235,13 +258,21 @@ def integral_gen_for_L(
     assert len(exprs) % expect_nexprs == 0
     components = nexprs // expect_nexprs
 
-    if norm_pgto:
+    if normalization == Normalization.PGTO:
         with get_timer("multiplying GTO normalization factors") as t:
             pgto_norms = get_pgto_normalization(Ls, exponents)
             exprs = apply_to_components(
                 exprs,
                 components,
                 lambda cexprs: [norm * expr for norm, expr in zip(pgto_norms, cexprs)],
+            )
+    elif normalization == Normalization.CGTO:
+        with get_timer("multiplying lmn CGTO normalization factors") as t:
+            lmn_factors = get_lmn_factors(Ls)
+            exprs = apply_to_components(
+                exprs,
+                components,
+                lambda cexprs: [norm * expr for norm, expr in zip(lmn_factors, cexprs)],
             )
 
     # Maybe do this later, after the CSE?
@@ -301,7 +332,9 @@ def integral_gen_for_L(
     return Ls, (repls, reduced)
 
 
-def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False, cse_kwargs=None):
+def integral_gen_getter(
+    contr_coeffs, sph=False, normalization=Normalization.NONE, cse_kwargs=None
+):
     def integral_gen(
         int_func,
         L_maxs,
@@ -309,7 +342,6 @@ def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False, cse_kwargs=Non
         name,
         maps=None,
         sph=sph,
-        norm_pgto=norm_pgto,
         L_iter=None,
         filter_func=None,
     ):
@@ -329,7 +361,7 @@ def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False, cse_kwargs=Non
                 name,
                 maps,
                 sph,
-                norm_pgto,
+                normalization,
                 cse_kwargs,
                 filter_func=filter_func,
             )
@@ -394,10 +426,10 @@ def parse_args(args):
         "If not given, all expressions are generated.",
     )
     parser.add_argument("--sph", action="store_true")
-    parser.add_argument("--norm-pgto", action="store_true")
     parser.add_argument(
         "--opt-basic", action="store_true", help="Turn on basic optimizations in CSE."
     )
+    parser.add_argument("--normalize", choices=normalization_map.keys(), default="none")
 
     return parser.parse_args()
 
@@ -408,7 +440,7 @@ def run():
     l_max = args.lmax
     l_aux_max = args.lauxmax
     sph = args.sph
-    norm_pgto = args.norm_pgto
+    normalization = normalization_map[args.normalize]
     out_dir = Path(args.out_dir if not args.write else ".")
     keys = args.keys
 
@@ -455,7 +487,7 @@ def run():
     integral_gen = integral_gen_getter(
         contr_coeffs=contr_coeffs,
         sph=sph,
-        norm_pgto=norm_pgto,
+        normalization=normalization,
         cse_kwargs=cse_kwargs,
     )
     py_renderer = PythonRenderer()
