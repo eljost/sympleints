@@ -22,9 +22,13 @@
 # [7] https://arxiv.org/pdf/2210.03192.pdf
 #     Memory-Efficient Recursive Evaluation of 3-Center Gaussian Integrals
 #     Asadchev, Valeev, 2022
+# [8] https://arxiv.org/pdf/2007.12057.pdf
+#     Fundamentals of Molecular Integrals Evaluation
+#     Fermann, Valeev
 
 
 import argparse
+from enum import Enum
 
 from datetime import datetime
 import functools
@@ -43,41 +47,50 @@ from sympy import (
     cse,
     factorial2,
     flatten,
-    IndexedBase,
-    Matrix,
     permutedims,
     pi,
     simplify,
     sqrt,
-    Symbol,
     symbols,
     tensorcontraction as tc,
     tensorproduct as tp,
 )
 
-from sympleints import __version__
-from sympleints.config import L_MAX, L_AUX_MAX, L_MAP
+from sympleints import (
+    __version__,
+    canonical_order,
+    get_center,
+    get_map,
+    shell_iter,
+    get_timer_getter,
+)
+from sympleints.config import L_MAX, L_AUX_MAX, PREC
 from sympleints.defs.coulomb import (
     CoulombShell,
     TwoCenterTwoElectronShell,
-    ThreeCenterTwoElectronShell,
+    # ThreeCenterTwoElectronShell,
     ThreeCenterTwoElectronSphShell,
 )
-from sympleints import canonical_order, shell_iter
-from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
-from sympleints.defs.gto import CartGTOShell
+
+# from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
+from sympleints.symbols import center_R, R, R_map
+
+from sympleints.defs.gto import gen_gto3d_shell
 from sympleints.defs.kinetic import gen_kinetic_shell
 from sympleints.defs.multipole import gen_diag_quadrupole_shell, gen_multipole_shell
 from sympleints.defs.overlap import gen_overlap_shell
 from sympleints.FortranRenderer import FortranRenderer
 from sympleints.Functions import Functions
+from sympleints.helpers import L_MAP
 from sympleints.PythonRenderer import PythonRenderer
-from sympleints.render_v2 import get_write_render
 
 try:
-    from pysisyphus.wavefunction.cart2sph import cart2sph_coeffs
+    from pysisyphus.wavefunction.cart2sph import cart2sph_coeffs, cart2sph_nlms
+
+    can_sph = True
 except ModuleNotFoundError:
-    print("pysisyphus is not installed. Disabling Cartesian->spherical transformation.")
+    can_sph = False
+
 
 KEYS = (
     "gto",
@@ -88,21 +101,21 @@ KEYS = (
     "kin",
     "coul",
     "2c2e",
-    # "3c2e",
+    # "3c2e",  # not really practical
     "3c2e_sph",
 )
-ONE_THRESH = 1e-14
+Normalization = Enum("Normalization", ["PGTO", "CGTO", "NONE"])
+normalization_map = {
+    "pgto": Normalization.PGTO,
+    "cgto": Normalization.CGTO,
+    "none": Normalization.NONE,
+}
 
 
-def get_center(i):
-    symbs = [Symbol(str(i) + ind, real=True) for ind in ("x", "y", "z")]
-    return Matrix([*symbs]).T  # Return column vector
-
-
-def get_map(i, center_i):
-    array = IndexedBase(i, shape=3)
-    array_map = dict(zip(center_i, array))
-    return array, array_map
+if can_sph:
+    # Pregenerate coefficients
+    CART2SPH = cart2sph_coeffs(max(L_MAX, L_AUX_MAX) + 2, zero_small=True)
+    NLMS = cart2sph_nlms(max(L_MAX, L_AUX_MAX) + 2)
 
 
 def cart2spherical(L_tots, exprs):
@@ -127,20 +140,17 @@ def cart2spherical(L_tots, exprs):
             "Cartesian -> spherical transformation for 4-center integrals "
             "is not implemented!"
         )
-
-    # Cartesian-to-spherical transformation introduces quite a number of
-    # multiplications by 1.0, which are uneccessary. Here, we try to drop
-    # some of them by replacing numbers very close to +1.0 with 1.
-    sph = sph.replace(lambda n: n.is_Number and (abs(n - 1) <= ONE_THRESH), lambda n: 1)
-    # TODO: maybe something along the lines
-    # sph = map(lambda expr: expr.evalf(), flatten(sph))
-    # is faster?
     return flatten(sph)
+
+
+def get_spherical_quantum_numbers(L_tots):
+    L_nlms = [NLMS[L] for L in L_tots]
+    return list(it.product(*L_nlms))
 
 
 @functools.cache
 def norm_pgto(lmn, exponent):
-    """Norm of a primitive Cartesian GTO with angular momentum L = l + m + n."""
+    """Norm of a primitive Cartesian GTO with total angular momentum L = l + m + n."""
     L = sum(lmn)
     fact2l, fact2m, fact2n = [factorial2(2 * _ - 1) for _ in lmn]
     return sqrt(
@@ -166,10 +176,28 @@ def get_pgto_normalization(L_tots, exponents):
     return exprs
 
 
+@functools.cache
+def lmn_factors(L):
+    """Angular momentum vector dependent part of the norm of a contracted GTO."""
+    lmn_factors = list()
+    for lmn in canonical_order(L):
+        lmn_factor = prod([factorial2(2 * am - 1) for am in lmn])
+        lmn_factor = 1 / sqrt(lmn_factor)
+        lmn_factors.append(lmn_factor)
+    return lmn_factors
+
+
+def get_lmn_factors(Ls):
+    all_lmn_factors = [lmn_factors(L) for L in Ls]
+    exprs = [prod(ns) for ns in it.product(*all_lmn_factors)]
+    return exprs
+
+
 def apply_to_components(exprs, components, func):
     """Apply function func to cexprs in components of exprs.
 
-    For n components the order (cexprs_0, cexprs_1, ..., cexprsn) in exprs is expected."""
+    For n components the order (cexprs_0, cexprs_1, ..., cexprs_n) in exprs is expected.
+    """
     nexprs = len(exprs)
     nexprs_per_component = nexprs // components
     mod_exprs = list()
@@ -180,71 +208,115 @@ def apply_to_components(exprs, components, func):
 
 
 def integral_gen_for_L(
-    int_func, Ls, exponents, contr_coeffs, name, maps, sph=False, norm_pgto=False
+    int_func,
+    Ls,
+    exponents,
+    contr_coeffs,
+    name,
+    maps,
+    sph=False,
+    normalization=Normalization.NONE,
+    cse_kwargs=None,
+    filter_func=None,
 ):
     time_str = time.strftime("%H:%M:%S")
     start = datetime.now()
-    print(f"{time_str} - Generating {Ls} {name}")
+    print(f"{time_str} - Processing {Ls} {name}")
     sys.stdout.flush()
 
     if maps is None:
         maps = list()
+    if cse_kwargs is None:
+        cse_kwargs = dict()
+    if filter_func is None:
 
-    # Generate actual list of integral expressions.
+        def filter_func(*args):
+            return True
+
+    get_timer = get_timer_getter(prefix="\t... ", width=40, logger=None)
+
     expect_nexprs = len(list(shell_iter(Ls)))
-    exprs = int_func(*Ls)
-    contr_coeff_prod = functools.reduce(
-        lambda di, dj: di * dj, contr_coeffs[: len(Ls)], 1
-    )
-    exprs = [contr_coeff_prod * expr for expr in exprs]
-    print("\t... multiplied contraction coefficients")
+    # Actually create expressions by calling the passed function.
+    # This is where the magic begins to happen!
+    with get_timer("expression generation"):
+        exprs, lmns = int_func(*Ls)
+
+    with get_timer("multiplying contraction coefficients"):
+        contr_coeff_prod = functools.reduce(
+            lambda di, dj: di * dj, contr_coeffs[: len(Ls)], 1
+        )
+        exprs = [contr_coeff_prod * expr for expr in exprs]
     nexprs = len(exprs)
     assert len(exprs) % expect_nexprs == 0
     components = nexprs // expect_nexprs
-    print("\t... generated expressions")
 
-    # Normalize primitive Cartesian GTOs.
-    if norm_pgto:
-        pgto_norms = get_pgto_normalization(Ls, exponents)
-        exprs = apply_to_components(
-            exprs,
-            components,
-            lambda cexprs: [norm * expr for norm, expr in zip(pgto_norms, cexprs)],
-        )
-        print("\t... multiplied pGTO normalization factors")
-    sys.stdout.flush()
+    if normalization == Normalization.PGTO:
+        with get_timer("multiplying GTO normalization factors"):
+            pgto_norms = get_pgto_normalization(Ls, exponents)
+            exprs = apply_to_components(
+                exprs,
+                components,
+                lambda cexprs: [norm * expr for norm, expr in zip(pgto_norms, cexprs)],
+            )
+    elif normalization == Normalization.CGTO:
+        with get_timer("multiplying lmn CGTO normalization factors"):
+            lmn_factors = get_lmn_factors(Ls)
+            exprs = apply_to_components(
+                exprs,
+                components,
+                lambda cexprs: [norm * expr for norm, expr in zip(lmn_factors, cexprs)],
+            )
 
-    # Carry out Cartesian-to-spherical transformation, if requested. Or do this later?
+    # Maybe do this later, after the CSE?
     if sph:
-        exprs = apply_to_components(
-            exprs, components, lambda cexprs: cart2spherical(Ls, cexprs)
-        )
-        print("\t... did Cartesian to spherical conversion")
-        sys.stdout.flush()
+        with get_timer("Cartesian to spherical conversion"):
+            exprs = apply_to_components(
+                exprs, components, lambda cexprs: cart2spherical(Ls, cexprs)
+            )
+            # NOTE: Cartesian basis functions are characterized by their angular momenta
+            # l, m and n, stored in the variable 'lmns'. After transformation to spherical
+            # basis functions l, m, n are replaced by the quantum numbers n, l and m, which
+            # are stored again  in 'lmns', overwriting the Cartesian values.
+            # cart_lmns = lmns   # Original angular momenta could be saved to cart_lmns
+            lmns = get_spherical_quantum_numbers(Ls)
+            # Repeat updated list of quantum numbers the correct number of times.
+            lmns = list(it.chain(*[lmns for _ in range(components)]))
+
+    assert len(exprs) == len(lmns)
+    # Filter expressions, according to their quantum numbers.
+    exprs, lmns = zip(
+        *[(expr, lmns_) for expr, lmns_ in zip(exprs, lmns) if filter_func(*lmns_)]
+    )
 
     # Common subexpression elimination
-    repls, reduced = cse(list(exprs), order="none")
-    print("\t... did common subexpression elimination")
-    sys.stdout.flush()
+    _cse_kwargs = cse_kwargs.copy()
+    # 'optimizations': 'basic' becomes too slow for higher angular momenta, at least
+    # for 3-center integrals.
+    if (max(Ls) > 3) or ((len(Ls) > 2) and max(Ls) > 2):
+        try:
+            del _cse_kwargs["optimizations"]
+        except KeyError:
+            pass
+    with get_timer("common subexpression elimination"):
+        repls, reduced = cse(list(exprs), order="none", **_cse_kwargs)
 
     # Replacement expressions, used to form the reduced expressions.
-    for i, (lhs, rhs) in enumerate(repls):
-        rhs = simplify(rhs)
-        rhs = rhs.evalf()
-        # Replace occurences of Ax, Ay, Az, ... with A[0], A[1], A[2], ...
-        rhs = functools.reduce(lambda rhs, map_: rhs.xreplace(map_), maps, rhs)
-        repls[i] = (lhs, rhs)
+    with get_timer("simplifying & evaluating RHS"):
+        for i, (lhs, rhs) in enumerate(repls):
+            rhs = simplify(rhs)
+            rhs = rhs.evalf(PREC)
+            # Replace occurences of Ax, Ay, Az, ... with A[0], A[1], A[2], ...
+            rhs = functools.reduce(lambda rhs, map_: rhs.xreplace(map_), maps, rhs)
+            repls[i] = (lhs, rhs)
 
     # Reduced expression, i.e., the final integrals/expressions.
-    for i, red in enumerate(reduced):
-        red = simplify(red)
-        red = red.evalf()
-        reduced[i] = functools.reduce(lambda red, map_: red.xreplace(map_), maps, red)
-    # Carry out Cartesian-to-spherical transformation, if requested.
-    # if sph:
-    # reduced = cart2spherical(Ls, reduced)
-    # print("\t... did Cartesian -> Spherical conversion")
-    # sys.stdout.flush()
+    with get_timer("simplifying & evaluating LHS"):
+        for i, red in enumerate(reduced):
+            red = simplify(red)
+            red = red.evalf(PREC)
+            reduced[i] = functools.reduce(
+                lambda red, map_: red.xreplace(map_), maps, red
+            )
 
     dur = datetime.now() - start
     print(f"\t... finished in {str(dur)} h")
@@ -252,7 +324,9 @@ def integral_gen_for_L(
     return Ls, (repls, reduced)
 
 
-def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False):
+def integral_gen_getter(
+    contr_coeffs, sph=False, normalization=Normalization.NONE, cse_kwargs=None
+):
     def integral_gen(
         int_func,
         L_maxs,
@@ -260,15 +334,28 @@ def integral_gen_getter(contr_coeffs, sph=False, norm_pgto=False):
         name,
         maps=None,
         sph=sph,
-        norm_pgto=norm_pgto,
+        L_iter=None,
+        filter_func=None,
     ):
         if maps is None:
             maps = list()
         ranges = [range(L + 1) for L in L_maxs]
 
-        for Ls in it.product(*ranges):
+        if L_iter is None:
+            L_iter = it.product(*ranges)
+
+        for Ls in L_iter:
             yield integral_gen_for_L(
-                int_func, Ls, exponents, contr_coeffs, name, maps, sph, norm_pgto
+                int_func,
+                Ls,
+                exponents,
+                contr_coeffs,
+                name,
+                maps,
+                sph,
+                normalization,
+                cse_kwargs,
+                filter_func=filter_func,
             )
 
     return integral_gen
@@ -315,8 +402,8 @@ def parse_args(args):
     parser.add_argument(
         "--write",
         action="store_true",
-        help="Write out generated integrals to the current directory, potentially overwriting "
-        "the present modules.",
+        help="Write out generated integrals to the current directory, potentially "
+        "overwriting the present modules.",
     )
     parser.add_argument(
         "--out-dir",
@@ -331,31 +418,33 @@ def parse_args(args):
         "If not given, all expressions are generated.",
     )
     parser.add_argument("--sph", action="store_true")
-    parser.add_argument("--norm-pgto", action="store_true")
+    parser.add_argument(
+        "--opt-basic", action="store_true", help="Turn on basic optimizations in CSE."
+    )
+    parser.add_argument("--normalize", choices=normalization_map.keys(), default="none")
 
-    return parser.parse_args()
+    return parser.parse_args(args)
 
 
-def run():
-    args = parse_args(sys.argv[1:])
-
+def run(args):
     l_max = args.lmax
     l_aux_max = args.lauxmax
     sph = args.sph
-    norm_pgto = args.norm_pgto
+    normalization = normalization_map[args.normalize]
     out_dir = Path(args.out_dir if not args.write else ".")
     keys = args.keys
+
+    cse_kwargs = None
+    if args.opt_basic:
+        cse_kwargs = {
+            "optimizations": "basic",
+        }
+
     if keys is None:
         keys = list()
     try:
         os.mkdir(out_dir)
     except FileExistsError:
-        pass
-
-    try:
-        global CART2SPH
-        CART2SPH = cart2sph_coeffs(max(l_max, l_aux_max), zero_small=True)
-    except NameError:
         pass
 
     header = make_header(args)
@@ -368,8 +457,7 @@ def run():
     center_C = get_center("C")
     center_D = get_center("D")
     # Multipole origin or nuclear position
-    center_R = get_center("R")
-    Xa, Ya, Za = symbols("Xa Ya Za")
+    # center_R = get_center("R")
 
     # Orbital exponents ax, bx, cx, dx.
     ax, bx, cx, dx = symbols("ax bx cx dx", real=True)
@@ -385,56 +473,99 @@ def run():
     B, B_map = get_map("B", center_B)
     C, C_map = get_map("C", center_C)
     D, D_map = get_map("D", center_D)
-    R, R_map = get_map("R", center_R)
 
-    boys_import = ("from pysisyphus.wavefunction.ints.boys import boys",)
-
-    # function_getter = get_functions_getter()
     integral_gen = integral_gen_getter(
         contr_coeffs=contr_coeffs,
         sph=sph,
-        norm_pgto=norm_pgto,
+        normalization=normalization,
+        cse_kwargs=cse_kwargs,
     )
-    write_render = get_write_render(out_dir=out_dir, header=header)
     py_renderer = PythonRenderer()
     f_renderer = FortranRenderer()
+
+    renderers = [py_renderer, f_renderer]
+
+    def render_write(funcs):
+        fns = [renderer.render_write(funcs, out_dir) for renderer in renderers]
+        return fns
 
     #################
     # Cartesian GTO #
     #################
 
     def gto():
-        def gto_doc_func(L_tot):
+        def doc_func(L_tot):
             (La_tot,) = L_tot
             shell_a = L_MAP[La_tot]
             return (
-                f"3D {INT_KIND} {shell_a}-Gaussian shell.\n\n"
-                "Exponent a, centered at A, evaluated at (Xa, Ya, Za) + A."
+                f"3D {INT_KIND} {shell_a}-Gaussian shell.\n"
+                "Exponent ax, contraction coeff. da, centered at A, evaluated at R."
             )
 
         # This code can evaluate multiple points at a time
-        gto_Ls = integral_gen(
-            lambda La_tot: CartGTOShell(La_tot, ax, Xa, Ya, Za),
+        ls_exprs = integral_gen(
+            lambda La_tot: gen_gto3d_shell(La_tot, ax, A, R),
             (l_max,),
             (ax,),
             "gto",
         )
         name = ("sph" if sph else "cart") + "_gto3d"
-        write_render(
-            gto_Ls,
-            (ax, da, Xa, Ya, Za),
-            name,
-            gto_doc_func,
-            c=False,
+
+        gto_funcs = Functions(
+            name=name,
+            l_max=l_max,
+            coeffs=[da],
+            exponents=[ax],
+            centers=[A],
+            with_ref_center=True,
+            ls_exprs=ls_exprs,
+            doc_func=doc_func,
+            header=header,
+            spherical=sph,
         )
-        print()
+        render_write(gto_funcs)
+
+    ################
+    # Self Overlap #
+    ################
+
+    def self_overlap():
+        def doc_func(L_tots):
+            (La_tot, _) = L_tots
+            shell_a = L_MAP[La_tot]
+            return f"{INT_KIND} 3D ({shell_a}{shell_a}) self overlap."
+
+        ls_exprs = integral_gen(
+            lambda La_tot, Lb_tot: gen_overlap_shell(La_tot, Lb_tot, ax, bx, A, A),
+            (l_max, l_max),
+            (ax, bx),
+            "self_ovlp3d",
+            (A_map,),
+            L_iter=[(L, L) for L in range(l_max + 1)],
+            # Only keep the diagonal elements where all quantum numbers are identical.
+            filter_func=lambda nlma, nlmb: nlma == nlmb,
+        )
+
+        self_ovlp_funcs = Functions(
+            name="self_ovlp3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],  # Not actually needed
+            ls_exprs=ls_exprs,
+            ncomponents=1,
+            doc_func=doc_func,
+            header=header,
+            spherical=sph,
+        )
+        render_write(self_ovlp_funcs)
 
     #####################
     # Overlap integrals #
     #####################
 
     def overlap():
-        def ovlp_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
@@ -447,7 +578,6 @@ def run():
             "ovlp3d",
             (A_map, B_map),
         )
-        ls_exprs = list(ls_exprs)  # Realize expressions
         ovlp_funcs = Functions(
             name="ovlp3d",
             l_max=l_max,
@@ -455,25 +585,19 @@ def run():
             exponents=[ax, bx],
             centers=[A, B],
             ls_exprs=ls_exprs,
-            doc_func=ovlp_doc_func,
+            ncomponents=1,
+            doc_func=doc_func,
             header=header,
+            spherical=sph,
         )
-        with open(out_dir / "ovlp3d.py", "w") as handle:
-            handle.write(py_renderer.render(ovlp_funcs))
-        with open(out_dir / "ovlp3d.f90", "w") as handle:
-            handle.write(f_renderer.render(ovlp_funcs))
-        # _ = py_renderer.render(ovlp_funcs)
-        import sys
-
-        sys.exit()
-        print()
+        render_write(ovlp_funcs)
 
     ###########################
     # Dipole moment integrals #
     ###########################
 
     def dipole():
-        def dipole_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
@@ -496,39 +620,38 @@ def run():
             <s_a|z|s_b>
         """
 
-        dipole_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: gen_multipole_shell(
-                # Le_tot = 1
-                La_tot,
-                Lb_tot,
-                ax,
-                bx,
-                A,
-                B,
-                1,
-                R,
+                La_tot, Lb_tot, ax, bx, A, B, 1, R
             ),
             (l_max, l_max),
             (ax, bx),
             "dipole moment",
             (A_map, B_map, R_map),
         )
-        write_render(
-            dipole_ints_Ls,
-            (ax, da, A, bx, db, B, R),
-            "dipole3d",
-            dipole_doc_func,
+
+        dipole_funcs = Functions(
+            name="dipole3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            doc_func=doc_func,
             comment=dipole_comment,
-            c=True,
+            ncomponents=3,
+            with_ref_center=True,
+            header=header,
+            spherical=sph,
         )
-        print()
+        render_write(dipole_funcs)
 
     ###########################################
     # Diagonal of quadrupole moment integrals #
     ###########################################
 
     def diag_quadrupole():
-        def diag_quadrupole_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
@@ -546,7 +669,7 @@ def run():
                         quadrupole_integrals(bf_a, bf_b, rr)
         """
 
-        diag_quadrupole_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: gen_diag_quadrupole_shell(
                 La_tot, Lb_tot, ax, bx, center_A, center_B, center_R
             ),
@@ -555,22 +678,29 @@ def run():
             "diag quadrupole moment",
             (A_map, B_map, R_map),
         )
-        write_render(
-            diag_quadrupole_ints_Ls,
-            (ax, da, A, bx, db, B, R),
-            "diag_quadrupole3d",
-            diag_quadrupole_doc_func,
+
+        diag_quadrupole_funcs = Functions(
+            name="diag_quadrupole3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            doc_func=doc_func,
             comment=diag_quadrupole_comment,
-            c=True,
+            ncomponents=3,
+            with_ref_center=True,
+            header=header,
+            spherical=sph,
         )
-        print()
+        render_write(diag_quadrupole_funcs)
 
     ###############################
     # Quadrupole moment integrals #
     ###############################
 
     def quadrupole():
-        def quadrupole_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
@@ -588,7 +718,7 @@ def run():
         \       zz /
         """
 
-        quadrupole_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: gen_multipole_shell(
                 # Le_tot = 2
                 La_tot,
@@ -606,28 +736,34 @@ def run():
             (A_map, B_map, R_map),
         )
 
-        write_render(
-            quadrupole_ints_Ls,
-            (ax, da, A, bx, db, B, R),
-            "quadrupole3d",
-            quadrupole_doc_func,
+        quadrupole_funcs = Functions(
+            name="quadrupole3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            doc_func=doc_func,
             comment=quadrupole_comment,
-            c=True,
+            ncomponents=6,
+            with_ref_center=True,
+            header=header,
+            spherical=sph,
         )
-        print()
+        render_write(quadrupole_funcs)
 
     ############################
     # Kinetic energy integrals #
     ############################
 
     def kinetic():
-        def kinetic_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return f"{INT_KIND} 3D ({shell_a}{shell_b}) kinetic energy integral."
 
-        kinetic_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: gen_kinetic_shell(
                 La_tot, Lb_tot, ax, bx, center_A, center_B
             ),
@@ -636,27 +772,33 @@ def run():
             "kinetic",
             (A_map, B_map),
         )
-        write_render(
-            kinetic_ints_Ls,
-            (ax, da, A, bx, db, B),
-            "kinetic3d",
-            kinetic_doc_func,
-            c=True,
+
+        kinetic_funcs = Functions(
+            name="kinetic3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            ncomponents=1,
+            doc_func=doc_func,
+            header=header,
+            spherical=sph,
         )
-        print()
+        render_write(kinetic_funcs)
 
     #########################
     # 1el Coulomb Integrals #
     #########################
 
     def coulomb():
-        def coulomb_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return f"{INT_KIND} ({shell_a}{shell_b}) 1-electron Coulomb integral."
 
-        coulomb_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: CoulombShell(
                 La_tot, Lb_tot, ax, bx, center_A, center_B, center_R
             ),
@@ -665,23 +807,28 @@ def run():
             "coulomb3d",
             (A_map, B_map, R_map),
         )
-
-        write_render(
-            coulomb_ints_Ls,
-            (ax, da, A, bx, db, B, R),
-            "coulomb3d",
-            coulomb_doc_func,
-            c=False,
-            py_kwargs={"add_imports": boys_import},
+        coulomb_funcs = Functions(
+            name="coulomb3d",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            with_ref_center=True,
+            ls_exprs=ls_exprs,
+            ncomponents=1,
+            boys=True,
+            doc_func=doc_func,
+            header=header,
+            spherical=sph,
         )
-        print()
+        render_write(coulomb_funcs)
 
     ###############################################
     # Two-center two-electron repulsion integrals #
     ###############################################
 
     def _2center2electron():
-        def _2center2el_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
@@ -690,7 +837,7 @@ def run():
                 "two-center two-electron repulsion integral."
             )
 
-        _2center2el_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: TwoCenterTwoElectronShell(
                 La_tot,
                 Lb_tot,
@@ -701,24 +848,30 @@ def run():
             ),
             (l_aux_max, l_aux_max),
             (ax, bx),
-            "_2center2el3d",
+            "int2c2e",
             (A_map, B_map),
         )
-
-        write_render(
-            _2center2el_ints_Ls,
-            (ax, da, A, bx, db, B),
-            "_2center2el3d",
-            _2center2el_doc_func,
-            c=False,
-            py_kwargs={"add_imports": boys_import},
+        _2c2e_funcs = Functions(
+            name="int2c2e3d",  # Fortran does not like _2...
+            l_max=l_aux_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            ncomponents=1,
+            boys=True,
+            doc_func=doc_func,
+            header=header,
+            spherical=sph,
         )
-        print()
+        render_write(_2c2e_funcs)
 
     #################################################
     # Three-center two-electron repulsion integrals #
     #################################################
 
+    """
+    # NOT YET UPDATED!
     def _3center2electron():
         def _3center2el_doc_func(L_tots):
             La_tot, Lb_tot, Lc_tot = L_tots
@@ -747,52 +900,58 @@ def run():
             c=False,
             py_kwargs={"add_imports": boys_import},
         )
-        print()
+    """
 
     def _3center2electron_sph():
-        def _3center2el_doc_func(L_tots):
+        def doc_func(L_tots):
             La_tot, Lb_tot, Lc_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             shell_c = L_MAP[Lc_tot]
             doc_str = (
-                f"{INT_KIND} ({shell_a}{shell_b}|{shell_c}) three-center two-electron repulsion "
-                "integral."
+                f"{INT_KIND} ({shell_a}{shell_b}|{shell_c}) three-center "
+                "two-electron repulsion integral."
             )
             if INT_KIND == "Cartesian":
                 doc_str += (
                     "\nThese integrals MUST BE converted to spherical harmonics!\n"
-                    "\nIntegral generation utilized Ahlrichs (truncated) vertical recursion relation.\n"
-                    "There, some terms are omitted, that would cancel anyway, after Cartesian->Spherical "
-                    "transformation."
+                    "\nIntegral generation utilized Ahlrichs (truncated) vertical "
+                    "recursion relation.\nThere, some terms are omitted, that would "
+                    "cancel anyway, after Cartesian->Spherical transformation."
                 )
             return doc_str
 
-        _3center2el_ints_Ls = integral_gen(
+        ls_exprs = integral_gen(
             lambda La_tot, Lb_tot, Lc_tot: ThreeCenterTwoElectronSphShell(
                 La_tot, Lb_tot, Lc_tot, ax, bx, cx, center_A, center_B, center_C
             ),
             (l_max, l_max, l_aux_max),
             (ax, bx, cx),
-            "_3center2el3d_sph",
+            "int3c2e3d_sph",
             (A_map, B_map, C_map),
-            sph=False,
         )
-        write_render(
-            _3center2el_ints_Ls,
-            (ax, da, A, bx, db, B, cx, dc, C),
-            "_3center2el3d_sph",
-            _3center2el_doc_func,
-            c=False,
-            py_kwargs={"add_imports": boys_import},
+        int3c2e_funcs = Functions(
+            name="int3c2e3d_sph",  # Fortran does not like _2...
+            l_max=l_aux_max,
+            coeffs=[da, db, dc],
+            exponents=[ax, bx, cx],
+            centers=[A, B, C],
+            ls_exprs=ls_exprs,
+            boys=True,
+            doc_func=doc_func,
+            header=header,
+            spherical=sph,
         )
-        print()
+        render_write(int3c2e_funcs)
 
     #################################
     # Four-center overlap integrals #
     #################################
 
+    """
     def fourcenter_overlap():
+        raise Exception("Switch to new Functions syntax!")
+
         def doc_func(L_tots):
             La_tot, Lb_tot, Lc_tot, Ld_tot = L_tots
             shell_a = L_MAP[La_tot]
@@ -831,35 +990,47 @@ def run():
             doc_func,
             c=False,
         )
-        print()
+    """
 
     funcs = {
         "gto": gto,  # Cartesian Gaussian-type-orbital for density evaluation
+        "sovlp": self_overlap,  # Self overlap
         "ovlp": overlap,  # Overlap integrals
         "dpm": dipole,  # Linear moment (dipole) integrals
         "dqpm": diag_quadrupole,  # Diagonal part of the quadrupole tensor
         "qpm": quadrupole,  # Quadratic moment (quadrupole) integrals
         "kin": kinetic,  # Kinetic energy integrals
         "coul": coulomb,  # 1-electron Coulomb integrals
-        "2c2e": _2center2electron,  # 2-center-2-electron integrals for density fitting (DF)
+        "2c2e": _2center2electron,  # 2-center-2-electron density fitting integrals
         # "3c2e": _3center2electron,  # 3-center-2-electron integrals for DF
-        "3c2e_sph": _3center2electron_sph,  # Spherical 3-center-2-electron integrals for DF
+        "3c2e_sph": _3center2electron_sph,  # Sph. 3-center-2-electron DF integrals
         # "4covlp": fourcenter_overlap,  # Four center overlap integral
     }
 
     # Generate all possible integrals, when no 'keys' were supplied
+    negate_keys = list()
     if len(keys) == 0:
         keys = funcs.keys()
+    elif any(negate_keys := [key[1:] for key in keys if "~" in key]):
+        keys = [key for key in funcs.keys() if key not in negate_keys]
 
+    for ngk in negate_keys:
+        print(f"Skipping generation of '{ngk}'.")
     start = datetime.now()
-
     for key in keys:
         funcs[key]()
-
+        print()
     duration = datetime.now() - start
     duration_hms = str(duration).split(".")[0]  # Only keep hh:mm:ss
     print(f"sympleint run took {duration_hms} h.")
 
+    return 0
+
+
+def run_cli():
+    args = parse_args(sys.argv[1:])
+    return run(args)
+
 
 if __name__ == "__main__":
-    run()
+    run_cli()

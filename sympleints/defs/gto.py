@@ -5,21 +5,24 @@ from sympy import exp, Function
 from sympleints import shell_iter
 
 
-class CartGTO3d(Function):
-    """3D Cartesian Gaussian function; not normalized."""
+class CartGTO1d(Function):
+
+    """1D Cartesian Gaussian function; not normalized.
+    Centered at A, evaluated at R."""
 
     @classmethod
     @functools.cache
-    def eval(cls, i, j, k, a, Xa, Ya, Za):
-        Xa2 = Xa**2
-        Ya2 = Ya**2
-        Za2 = Za**2
-        return (Xa**i) * (Ya**j) * (Za**k) * exp(-a * (Xa2 + Ya2 + Za2))
+    def eval(cls, i, ax, A, R):
+        RA = R - A
+        return RA**i * exp(-ax * RA**2)
 
 
-class CartGTOShell(Function):
-    @classmethod
-    def eval(cls, La_tot, a, Xa, Ya, Za):
-        exprs = [CartGTO3d(*La, a, Xa, Ya, Za) for La, in shell_iter((La_tot,))]
-        # print(CartGTO3d.eval.cache_info())
-        return exprs
+def gen_gto_3d(La, ax, A, R):
+    x, y, z = [CartGTO1d(La[i], ax, A[i], R[i]) for i in range(3)]
+    return x * y * z
+
+
+def gen_gto3d_shell(La_tot, ax, A, R):
+    lmns = list(shell_iter((La_tot,)))
+    exprs = [gen_gto_3d(La, ax, A, R) for La, in lmns]
+    return exprs, lmns

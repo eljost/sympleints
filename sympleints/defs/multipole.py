@@ -3,7 +3,7 @@ import functools
 from sympy import pi, sqrt
 
 from sympleints import shell_iter
-from sympleints.defs import TwoCenter1d
+from sympleints.defs import TwoCenter1d, RecurStrategy, Strategy
 
 
 class Multipole1d(TwoCenter1d):
@@ -15,28 +15,20 @@ class Multipole1d(TwoCenter1d):
 
     @functools.cache
     def __call__(self, i, j, e):
-        ang_moms = (i, j, e)
-        if any([_ < 0 for _ in ang_moms]):
-            return 0
-
-        recur = self
+        def base_case():
+            return sqrt(pi / self.p) * self.K
 
         def vrr(i, j, e, X):
-            return X * recur(i, j, e) + 1 / (2 * self.p) * (
-                i * recur(i - 1, j, e) + j * recur(i, j - 1, e) + e * recur(i, j, e - 1)
+            return X * self(i, j, e) + 1 / (2 * self.p) * (
+                i * self(i - 1, j, e) + j * self(i, j - 1, e) + e * self(i, j, e - 1)
             )
 
-        # Base case
-        if all([_ == 0 for _ in ang_moms]):
-            return sqrt(pi / self.p) * self.K
-        # Decrement i
-        elif i > 0:
-            return vrr(i - 1, j, e, self.PA)
-        # Decrement j
-        elif j > 0:
-            return vrr(i, j - 1, e, self.PB)
-        elif e > 0:
-            return vrr(i, j, e - 1, self.PR)
+        vrr_bra = functools.partial(vrr, X=self.PA)
+        vrr_ket = functools.partial(vrr, X=self.PB)
+        vrr_e = functools.partial(vrr, X=self.PR)
+
+        strat = RecurStrategy(base_case, (vrr_bra, vrr_ket, vrr_e), Strategy.HIGHEST)
+        return strat.recur(i, j, e)
 
 
 def gen_multipole_3d(La, Lb, a, b, A, B, Le, R):
@@ -47,16 +39,18 @@ def gen_multipole_3d(La, Lb, a, b, A, B, Le, R):
 
 
 def gen_multipole_shell(La_tot, Lb_tot, a, b, A, B, Le_tot=0, R=(0.0, 0.0, 0.0)):
-    exprs = [
-        gen_multipole_3d(La, Lb, a, b, A, B, Le, R)
-        for Le, La, Lb in shell_iter((Le_tot, La_tot, Lb_tot))
-    ]
-    return exprs
+    lmns = list(shell_iter((Le_tot, La_tot, Lb_tot)))
+    exprs = [gen_multipole_3d(La, Lb, a, b, A, B, Le, R) for Le, La, Lb in lmns]
+    # Drop Le from angular momenta, only return (La, Lb) tuples.
+    lmns = [(La, Lb) for Le, La, Lb in lmns]
+    return exprs, lmns
 
 
 def gen_diag_quadrupole_shell(La_tot, Lb_tot, a, b, A, B, R=(0.0, 0.0, 0.0)):
     exprs = list()
+    lmns = list(shell_iter((La_tot, Lb_tot)))
     for Le in ((2, 0, 0), (0, 2, 0), (0, 0, 2)):
-        for La, Lb in shell_iter((La_tot, Lb_tot)):
+        for La, Lb in lmns:
             exprs.append(gen_multipole_3d(La, Lb, a, b, A, B, Le, R))
-    return exprs
+    lmns = lmns + lmns + lmns
+    return exprs, lmns
