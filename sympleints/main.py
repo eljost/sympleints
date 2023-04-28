@@ -68,7 +68,7 @@ from sympleints.config import L_MAX, L_AUX_MAX, PREC
 from sympleints.defs.coulomb import (
     CoulombShell,
     TwoCenterTwoElectronShell,
-    ThreeCenterTwoElectronShell,
+    # ThreeCenterTwoElectronShell,
     ThreeCenterTwoElectronSphShell,
 )
 from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
@@ -100,10 +100,9 @@ KEYS = (
     "kin",
     "coul",
     "2c2e",
-    # "3c2e",
+    # "3c2e",  # not really practical
     "3c2e_sph",
 )
-ONE_THRESH = 1e-14
 Normalization = Enum("Normalization", ["PGTO", "CGTO", "NONE"])
 normalization_map = {
     "pgto": Normalization.PGTO,
@@ -140,14 +139,6 @@ def cart2spherical(L_tots, exprs):
             "Cartesian -> spherical transformation for 4-center integrals "
             "is not implemented!"
         )
-
-    # Cartesian-to-spherical transformation introduces quite a number of
-    # multiplications by 1.0, which are uneccessary. Here, we try to drop
-    # some of them by replacing numbers very close to +1.0 with 1.
-    # sph = sph.replace(lambda n: n.is_Number and (abs(n - 1) <= ONE_THRESH), lambda n: 1)
-    # TODO: maybe something along the lines
-    # sph = map(lambda expr: expr.evalf(), flatten(sph))
-    # is faster?
     return flatten(sph)
 
 
@@ -431,12 +422,10 @@ def parse_args(args):
     )
     parser.add_argument("--normalize", choices=normalization_map.keys(), default="none")
 
-    return parser.parse_args()
+    return parser.parse_args(args)
 
 
-def run():
-    args = parse_args(sys.argv[1:])
-
+def run(args):
     l_max = args.lmax
     l_aux_max = args.lauxmax
     sph = args.sph
@@ -1028,6 +1017,13 @@ def run():
     duration_hms = str(duration).split(".")[0]  # Only keep hh:mm:ss
     print(f"sympleint run took {duration_hms} h.")
 
+    return 0
+
+
+def run_cli():
+    args = parse_args(sys.argv[1:])
+    return run(args)
+
 
 if __name__ == "__main__":
-    run()
+    run_cli()
