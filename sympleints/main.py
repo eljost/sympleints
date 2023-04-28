@@ -276,7 +276,7 @@ def integral_gen_for_L(
             # l, m and n, stored in the variable 'lmns'. After transformation to spherical
             # basis functions l, m, n are replaced by the quantum numbers n, l and m, which
             # are stored again  in 'lmns', overwriting the Cartesian values.
-            cart_lmns = lmns
+            # cart_lmns = lmns   # Original angular momenta could be saved to cart_lmns
             lmns = get_spherical_quantum_numbers(Ls)
             # Repeat updated list of quantum numbers the correct number of times.
             lmns = list(it.chain(*[lmns for _ in range(components)]))
@@ -401,8 +401,8 @@ def parse_args(args):
     parser.add_argument(
         "--write",
         action="store_true",
-        help="Write out generated integrals to the current directory, potentially overwriting "
-        "the present modules.",
+        help="Write out generated integrals to the current directory, potentially "
+        "overwriting the present modules.",
     )
     parser.add_argument(
         "--out-dir",
@@ -637,6 +637,7 @@ def run(args):
             centers=[A, B],
             ls_exprs=ls_exprs,
             doc_func=doc_func,
+            comment=dipole_comment,
             ncomponents=3,
             with_ref_center=True,
             header=header,
@@ -685,6 +686,7 @@ def run(args):
             centers=[A, B],
             ls_exprs=ls_exprs,
             doc_func=doc_func,
+            comment=diag_quadrupole_comment,
             ncomponents=3,
             with_ref_center=True,
             header=header,
@@ -741,6 +743,7 @@ def run(args):
             centers=[A, B],
             ls_exprs=ls_exprs,
             doc_func=doc_func,
+            comment=quadrupole_comment,
             ncomponents=6,
             with_ref_center=True,
             header=header,
@@ -905,15 +908,15 @@ def run(args):
             shell_b = L_MAP[Lb_tot]
             shell_c = L_MAP[Lc_tot]
             doc_str = (
-                f"{INT_KIND} ({shell_a}{shell_b}|{shell_c}) three-center two-electron repulsion "
-                "integral."
+                f"{INT_KIND} ({shell_a}{shell_b}|{shell_c}) three-center "
+                "two-electron repulsion integral."
             )
             if INT_KIND == "Cartesian":
                 doc_str += (
                     "\nThese integrals MUST BE converted to spherical harmonics!\n"
-                    "\nIntegral generation utilized Ahlrichs (truncated) vertical recursion relation.\n"
-                    "There, some terms are omitted, that would cancel anyway, after Cartesian->Spherical "
-                    "transformation."
+                    "\nIntegral generation utilized Ahlrichs (truncated) vertical "
+                    "recursion relation.\nThere, some terms are omitted, that would "
+                    "cancel anyway, after Cartesian->Spherical transformation."
                 )
             return doc_str
 
@@ -997,9 +1000,9 @@ def run(args):
         "qpm": quadrupole,  # Quadratic moment (quadrupole) integrals
         "kin": kinetic,  # Kinetic energy integrals
         "coul": coulomb,  # 1-electron Coulomb integrals
-        "2c2e": _2center2electron,  # 2-center-2-electron integrals for density fitting (DF)
+        "2c2e": _2center2electron,  # 2-center-2-electron density fitting integrals
         # "3c2e": _3center2electron,  # 3-center-2-electron integrals for DF
-        "3c2e_sph": _3center2electron_sph,  # Spherical 3-center-2-electron integrals for DF
+        "3c2e_sph": _3center2electron_sph,  # Sph. 3-center-2-electron DF integrals
         # "4covlp": fourcenter_overlap,  # Four center overlap integral
     }
 
