@@ -867,6 +867,7 @@ def run(args):
     #################################################
 
     """
+    # NOT YET UPDATED!
     def _3center2electron():
         def _3center2el_doc_func(L_tots):
             La_tot, Lb_tot, Lc_tot = L_tots
@@ -943,6 +944,7 @@ def run(args):
     # Four-center overlap integrals #
     #################################
 
+    """
     def fourcenter_overlap():
         raise Exception("Switch to new Functions syntax!")
 
@@ -984,6 +986,7 @@ def run(args):
             doc_func,
             c=False,
         )
+    """
 
     funcs = {
         "gto": gto,  # Cartesian Gaussian-type-orbital for density evaluation
