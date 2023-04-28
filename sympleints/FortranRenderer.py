@@ -15,7 +15,13 @@ def format_with_fprettify(fortran: str):
     except ModuleNotFoundError:
         print("Skipped formatting with fprettify, as it is not installed!")
         return fortran
+    except (AttributeError, ValueError):
+        # pytest patches sys.stdin, on which fprettify tries to call detach() on
+        # which fails, as DontReadFromInput does not have this method.
+        return fortran
 
+    # I wonder if fprettify can also deal with strings instead of files only?!
+    # I did not manage to find out ... so we use some temporary files here.
     try:
         fp = tempfile.NamedTemporaryFile("w", delete=False)
         fp.write(fortran)
@@ -262,26 +268,5 @@ class FortranRenderer(Renderer):
             init=init,
             funcs=rendered_funcs,
         )
-        rendered_backup = rendered
-        # I wonder if fprettify can also deal with strings instead of files only?!
-        # I did not manage to find out ... so we use some temporary files here.
-        try:
-            import fprettify
-
-            try:
-                fp = tempfile.NamedTemporaryFile("w", delete=False)
-                fp.write(rendered)
-                fp.close()
-                fprettify.reformat_inplace(
-                    fp.name
-                )  # (infile=infile, outfile=outfile, orig_filename="rendered")
-                with open(fp.name) as handle:
-                    rendered = handle.read()
-                os.remove(fp.name)
-                print("\t ... formatted Fortran code with fprettify")
-            except fprettify.FprettifyException:
-                print("Error while running fprettify. Dumping nontheless.")
-                rendered = rendered_backup
-        except ModuleNotFoundError:
-            print("Skipped formatting with fprettify, as it is not installed!")
+        rendered = format_with_fprettify(rendered)
         return rendered
