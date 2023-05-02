@@ -21,7 +21,7 @@ After successful installation the `sympleints` command should be available in th
 
 ```bash
 $ sympleints --help
-usage: sympleints [-h] [--lmax LMAX] [--lauxmax LAUXMAX] [--write] [--out-dir OUT_DIR] [--keys KEYS [KEYS ...]] [--sph] [--norm-pgto]
+usage: sympleints [-h] [--lmax LMAX] [--lauxmax LAUXMAX] [--write] [--out-dir OUT_DIR] [--keys KEYS [KEYS ...]] [--sph] [--opt-basic] [--normalize {pgto,cgto,none}]
 
 options:
   -h, --help            show this help message and exit
@@ -32,7 +32,8 @@ options:
   --keys KEYS [KEYS ...]
                         Generate only certain expressions. Possible keys are: (gto, ovlp, dpm, dqpm, qpm, kin, coul, 2c2e, 3c2e_sph). If not given, all expressions are generated.
   --sph
-  --norm-pgto
+  --opt-basic           Turn on basic optimizations in CSE.
+  --normalize {pgto,cgto,none}
 ```
 
 To get a quick impression some overlap integrals up to p-functions are generated via:
