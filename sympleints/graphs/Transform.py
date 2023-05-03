@@ -281,7 +281,11 @@ def get_c2s_map(L_tot: int):
         assert len(raw_ang_moms) == 1
         Lm = raw_ang_moms[0]
         sph_am = SphAngMom(*Lm)
-        factors, cart_lmns = expand_sph_quantum_numbers(Lm)
+        # with_lmn_factors=True the (l, m, n) angular momentum vector dependent
+        # factors are multiplied onto the C2S-coefficients. Please see
+        # '$sympleints_root/ressources/cgto_normalization.ipynb' how normalization
+        # is handled in sympleints.
+        factors, cart_lmns = expand_sph_quantum_numbers(Lm, with_lmn_factors=True)
         rhs_ams = list()
         for cart_lmn in cart_lmns:
             cart_am = CartAngMom(*cart_lmn)
