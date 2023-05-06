@@ -6,6 +6,11 @@ from typing import Tuple
 
 from sympleints.config import ARR_BASE_NAME
 from sympleints.helpers import BFKind
+from sympleints.graphs.triangle_rec import get_pos_dict
+
+
+# TODO: don't hardcode L_max=8 here, but use a more sensible value?!
+reduce_at_pos = get_pos_dict(L_max=8)
 
 
 @functools.total_ordering
@@ -303,7 +308,7 @@ class AngMoms:
     def is_spherical(self, index) -> bool:
         return type(self.ang_moms[index]) == SphAngMom
 
-    def get_reduce_index(self, index, prefer_index=None):
+    def get_reduce_index(self, index, prefer_index=None, L_target=None):
         # AuxInd has only 1 entry, so we always return 0.
         if index == self.aux_index:
             reduce_index = 0
@@ -314,12 +319,42 @@ class AngMoms:
                 # If a preferred index was supplied try to use it, if possible.
                 if prefer_index in non_zero_indices:
                     reduce_index = prefer_index
+                elif L_target is not None:
+                    L = sum(ams)
+                    reduce_index = reduce_at_pos[L_target][L][ams]
                 # Otherwise pick a random index
                 else:
                     reduce_index = random.choice(non_zero_indices)
             # IndexError will be raised if the basecase is reached
             except (AttributeError, IndexError):
                 reduce_index = None
+        return reduce_index
+
+    def get_reduce_index(self, index, prefer_index=None, L_target=None, name=""):
+        # AuxInd has only 1 entry, so we always return 0.
+        if index == self.aux_index:
+            reduce_index = 0
+        else:
+            ams = self.ang_moms[index]
+            L = sum(ams)
+            if L == 0:
+                return None
+            non_zero_indices = ams.non_zero_indices()
+            # If a preferred index was supplied try to use it, if possible.
+            if prefer_index in non_zero_indices:
+                reduce_index = prefer_index
+            elif L_target is not None:
+                try:
+                    reduce_index = reduce_at_pos[L_target][L][ams.as_tuple()]
+                # This except block is triggered in cases, where angular momentum is built
+                # up beyond the actually target angular momentum, e.g., in the VRR of
+                # 3-center-2-electron integrals, where the angular momentum of A has to be
+                # built up to L_A + L_B, while only L_A is actually required for A.
+                except KeyError:
+                    reduce_index = reduce_at_pos[L][L][ams.as_tuple()]
+            # Otherwise pick a random index
+            else:
+                reduce_index = random.choice(non_zero_indices)
         return reduce_index
 
     def apply_mask(self, mask, reduce_index):

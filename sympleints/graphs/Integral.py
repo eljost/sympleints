@@ -80,11 +80,12 @@ class Integral:
         rr_expr = parse_raw_expr(expr_raw)
 
         transf = RecurRel(
-            name,
-            center_index,
-            self.cur_kinds,
-            self.ninds,
-            rr_expr,
+            name=name,
+            center_index=center_index,
+            kinds=self.cur_kinds,
+            ninds=self.ninds,
+            L_tots=self.L_tots,
+            rr_expr=rr_expr,
             **kwargs,
         )
         return transf
@@ -94,7 +95,12 @@ class Integral:
         assert new_kinds[center_index] == BFKind.CART
         new_kinds[center_index] = BFKind.SPH
         transf = Cart2Sph(
-            name, self.L_tots, center_index, new_kinds, self.ninds, **kwargs
+            name=name,
+            center_index=center_index,
+            kinds=new_kinds,
+            ninds=self.ninds,
+            L_tots=self.L_tots,
+            **kwargs,
         )
         return transf, new_kinds
 

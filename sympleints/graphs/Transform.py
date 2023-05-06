@@ -151,10 +151,13 @@ class Transform(metaclass=abc.ABCMeta):
 
     def __init__(
         self,
+        *,
         name: str,
         center_index,
         kinds,
         ninds,
+        L_tots,
+        L_target_func=None,
         order=None,
         edge_attrs: Optional[Dict] = None,
     ):
@@ -162,6 +165,14 @@ class Transform(metaclass=abc.ABCMeta):
         self.center_index = center_index
         self.kinds = kinds
         self.ninds = ninds
+        self.L_tots = L_tots
+        # L_target may be higher than self.L_tots[self.center_index] because
+        # some recursion relations build up a higher angular momentum at a given
+        # index, that is later reduced by another recursion relation.
+        if L_target_func is None:
+            L_target_func = lambda L_tots: L_tots[self.center_index]
+        self.L_target_func = L_target_func
+        self.L_target = self.L_target_func(self.L_tots)
         if order is None:
             order = range(len(kinds))
         self.order = order
@@ -198,16 +209,12 @@ class Transform(metaclass=abc.ABCMeta):
 class RecurRel(Transform):
     def __init__(
         self,
-        name,
-        center_index,
-        kinds,
-        ninds,
+        *,
         rr_expr,
-        order=None,
         prefer_index=None,
-        edge_attrs=None,
+        **kwargs,
     ):
-        super().__init__(name, center_index, kinds, ninds, order, edge_attrs)
+        super().__init__(**kwargs)
         self.rr_expr = rr_expr
         self.prefer_index = prefer_index
 
@@ -224,7 +231,10 @@ class RecurRel(Transform):
     def apply(self, ang_moms, reduce_index=None, drop_none=True):
         if reduce_index is None:
             reduce_index = ang_moms.get_reduce_index(
-                self.center_index, prefer_index=self.prefer_index
+                self.center_index,
+                prefer_index=self.prefer_index,
+                L_target=self.L_target,
+                name=self.name,
             )
         mod_ang_moms = tuple()
         for mask in self.masks:
@@ -299,18 +309,11 @@ class Cart2Sph(Transform):
 
     def __init__(
         self,
-        name,
-        L_tots,
-        center_index,
-        kinds,
-        ninds,
-        order=None,
-        edge_attrs=None,
+        **kwargs,
     ):
-        super().__init__(name, center_index, kinds, ninds, order, edge_attrs)
-        self.L_tots = L_tots
+        super().__init__(**kwargs)
         # Create C2S map of correct length and kinds
-        self._map = get_c2s_map(self.L_tots[self.center_index])
+        self._map = get_c2s_map(self.L_target)
 
     def apply(self, ang_moms, reduce_index=None, drop_none=True):
         # Compared to actual recursion relations the Cartesian->Spherical transformation
