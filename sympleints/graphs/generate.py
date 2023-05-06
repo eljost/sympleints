@@ -116,7 +116,9 @@ def generate_integral(L_tots: Sequence[int], integral: Integral) -> GeneratedInt
     fns = [base / get_G_fn(integral, transf, key) for transf in integral.rrs]
     for fn in fns:
         if not fn.exists():
-            opt_integral_transforms(L_tots, integral, with_aux=integral.with_aux)
+            opt_integral_transforms(
+                L_tots, integral, with_aux=integral.with_aux, max_cycles=1
+            )
             break
 
     array_defs = dict()
@@ -191,6 +193,14 @@ def generate_integral(L_tots: Sequence[int], integral: Integral) -> GeneratedInt
                         work_arr=IndexedBase("tmp", shape=(max_tmp_size,)),
                     )
                 )
+
+            # This conditional is probably always True ...
+            if cur_assignments:
+                cur_assignments = merge_expressions(
+                    cur_assignments, indexed_filter="work_|tmp"
+                )
+                assignments[f"resort_before_{transform.name}"] = cur_assignments
+            cur_assignments = list()
 
         # Generate base expressions in the first cycle
         if i == 0:

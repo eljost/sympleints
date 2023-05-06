@@ -67,7 +67,7 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, res)
         theta = 2d0 * pi**(5d0/2d0) / (px * cx * sqrt(px + cx))
 
         {% for name, lines in blocks.items() %}
-          ! {{ name }}
+          ! {{ name }}, {{ lines|length }} expressions
           {% for line in lines %}
             {{ line }}
           {% endfor %}
