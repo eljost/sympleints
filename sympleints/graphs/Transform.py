@@ -124,8 +124,14 @@ def parse_raw_expr(raw_expr: str, sub_key="Int") -> RRExpr:
         repl = f"{pos_vec}_pos"
         expr_subbed = pos_re.sub(repl, expr_subbed, count=1)
 
+    # Prevent sympy from recognizing pi as constant and substituting a value
+    # for it. This should be handled by the actual implementation.
+    locals = {
+        "pi": sympy.Symbol("pi", constant=False),
+        "PI": sympy.Symbol("pi", constant=False),
+    }
     # Create actual sympy expressions/symbols
-    expr = sympy.sympify(expr_subbed)
+    expr = sympy.sympify(expr_subbed, locals=locals)
     # It seems we can't indicate real=True/integer=True here, as this will mess up
     # the subs later in the RR.
     ints = sympy.symbols(ints)
