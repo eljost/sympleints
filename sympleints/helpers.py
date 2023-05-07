@@ -2,12 +2,15 @@ from collections.abc import Iterable
 import enum  # from enum import Enum
 import functools
 import itertools as it
+from pathlib import Path
 import sys
 import time
 from typing import List, Tuple
 
 from colorama import Fore, Style
 from sympy import IndexedBase, Matrix, Symbol
+
+from sympleints.config import CACHE_DIR
 
 
 L_MAP = {
@@ -146,3 +149,12 @@ def get_timer_getter(**kwargs):
         return Timer(*args, **kwargs)
 
     return get_timer
+
+
+def get_path_in_cache_dir(fn, cwd=None):
+    if cwd is None:
+        cwd = Path(".")
+    cache_dir = cwd / CACHE_DIR
+    if not cache_dir.exists():
+        cache_dir.mkdir()
+    return cache_dir / fn
