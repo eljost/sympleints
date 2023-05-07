@@ -131,3 +131,9 @@ dmypy.json
 version.py
 # Calculated graphs
 *.xml.tar.gz
+
+*.o
+*.mod
+*.png
+*.svg
+*.f90
