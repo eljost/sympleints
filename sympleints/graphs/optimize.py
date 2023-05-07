@@ -8,7 +8,7 @@ from sympleints.graphs.AngMoms import AngMoms, AngMomMap, AuxIndex
 from sympleints.graphs.helpers import dump_graph
 from sympleints.graphs.Integral import Integral
 from sympleints.graphs.Transform import Transform
-from sympleints.helpers import shell_iter
+from sympleints.helpers import shell_iter, get_path_in_cache_dir
 
 
 def apply_transform(
@@ -92,7 +92,8 @@ def opt_integral_transforms(
     L_tots: Tuple[int, ...],
     integral: Integral,
     with_aux: bool,
-    max_cycles: int = 200,
+    max_cycles: int = 50,
+    do_plot=False,
 ) -> None:
     """Try to determine the graph w/ smallest number of intermediates by brute force."""
     assert max_cycles > 0
@@ -125,9 +126,9 @@ def opt_integral_transforms(
         G = min_results[transf.name]
         fn = get_G_fn(integral, transf, lkey)
         # TODO: remove special characters, e.g., parantheses
-        nx.write_gexf(G, fn)
+        nx.write_gexf(G, get_path_in_cache_dir(fn))
         print(f"Wrote '{fn}'.")
-    if max(L_tots) <= 3:
+    if do_plot and max(L_tots) <= 3:
         dump_graph(min_results["total"], f"G_min_{lkey}")
     else:
         print(f"Skipped image generation for '{L_tots}'")

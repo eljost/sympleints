@@ -67,6 +67,11 @@ class Integral:
     def rrs(self):
         return list(self._transformations.values())
 
+    @property
+    def name_with_L_tots(self):
+        key = "".join(map(str, self.L_tots))
+        return f"{self.name}_{key}"
+
     def add_base(self, base_raw):
         self._base = parse_raw_expr(base_raw)
 
@@ -113,13 +118,17 @@ class Integral:
         order=None,
         **kwargs,
     ):
+        assert name not in self._transformations, (
+            f"A transformation with the name '{name}' was already added! "
+            "Please rename this transformation."
+        )
         if order is None:
             # Try to use order from previous transformation
             try:
                 prev_key = tuple(self._transformations.keys())[-1]
                 order = self._transformations[prev_key].order
             except IndexError:
-                order = tuple(range(self.ninds))
+                order = tuple(range(self.ncenters))
 
         _edge_attrs = {
             "color": self.colors[len(self.rrs) % len(self.colors)],

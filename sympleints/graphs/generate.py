@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 import itertools as it
 from pathlib import Path
+import sys
 from typing import Dict, List, Tuple
 
 import networkx as nx
@@ -13,7 +14,7 @@ from sympleints.graphs.AngMoms import AngMoms, LKind
 from sympleints.graphs.Integral import Integral
 from sympleints.graphs.merge_exprs import merge_expressions
 from sympleints.graphs.optimize import get_G_fn, opt_integral_transforms
-from sympleints.helpers import get_order_funcs_for_kinds
+from sympleints.helpers import get_order_funcs_for_kinds, get_path_in_cache_dir
 
 
 def get_index_map_for_graph(
@@ -114,6 +115,7 @@ def generate_integral(L_tots: Sequence[int], integral: Integral) -> GeneratedInt
 
     base = Path(".")
     fns = [base / get_G_fn(integral, transf, key) for transf in integral.rrs]
+    fns = [get_path_in_cache_dir(fn) for fn in fns]
     for fn in fns:
         if not fn.exists():
             opt_integral_transforms(
@@ -150,11 +152,12 @@ def generate_integral(L_tots: Sequence[int], integral: Integral) -> GeneratedInt
     resorted = False
     assignments = dict()
 
+    name_with_L_tots = integral.name_with_L_tots
+    nsteps = len(integral.rrs)
     zip_ = list(zip(integral.rrs, fns))
     for i, (transform, G_fn) in enumerate(zip_):
-        print(f"Processing '{transform.name}'")
+        print(f"Processing {name_with_L_tots} step {i+1}/{nsteps}, {transform.name}")
         G = nx.read_gexf(G_fn, node_type=AngMoms.from_str)
-        print("\t ... read graph from file")
 
         names, name_map = array_names_from_G(G)
         index_map, key_index_map, size_map = get_index_map_for_graph(
@@ -222,6 +225,7 @@ def generate_integral(L_tots: Sequence[int], integral: Integral) -> GeneratedInt
         assignments[transform.name] = cur_assignments
         prev_order = transform.order
         prev_key_index_map = key_index_map
+        sys.stdout.flush()
 
     # After all transformations are carried out, we know the maximum required size
     # for the tmp array.
