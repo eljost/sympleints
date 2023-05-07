@@ -129,4 +129,5 @@ dmypy.json
 .pyre/
 
 version.py
+# Calculated graphs
 *.xml.tar.gz
