@@ -220,6 +220,7 @@ def generate_integral(L_tots: Sequence[int], integral: Integral) -> GeneratedInt
             # expressions can be merged.
             expr = transform.get_expr(node, pos, compr_arr_map, index_map)
             cur_assignments.append(expr)
+        # TODO: explore if CSE can be applied here
         # Merge expressions for more succinct code. This is also where the magic happens.
         cur_assignments = merge_expressions(cur_assignments, indexed_filter="work_|tmp")
         assignments[transform.name] = cur_assignments
