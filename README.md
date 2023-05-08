@@ -1,12 +1,32 @@
 # sympleints
 Molecular integrals over **shells** of Gaussian basis functions using sympy.
 
-By providing the appropriate commands, `sympleints` is able to generate integral code that already includes
-the Cartesian-to-spherical transformation (`--sph`) and normalization factors (`--norm-pgto`).
+By providing the appropriate commands, `sympleints` is able to generate integral code that
+already includes the Cartesian-to-spherical transformation (`--sph`) and/or normalization
+factors (`--normalize pgto|cgto|none`).
+
+A sensible way to handle normalization is outlined in the notebook
+`ressources/cgto_normalization.ipynb`.
 
 The generated python code makes heavy use of `numpy` and by providing arguments with appropriate
 shapes, all functions can be evaluted using arrays of exponents and contraction coefficients
 (contraced gaussian functions).
+
+Presently, the library implements two approaches:
+
+1. Explicit generation of full integral expressions via explicit implementation of reccurence
+   relations, followed by common-subexpression-elimination.
+2. Generation of dependence graphs for integrals and their translation into actual code.
+
+Both approaches have their advantages and drawbacks.
+
+1. Programming the reccurence relations is cumbersome, having an explicit expression for the integral at hand is very  
+    convenient. Generation of kinetic energy integrals is very simple, as the appropriate products of overalp and intermediate  
+    kinetic energy integrals are easily multiplied using sympy. Derivatives are probably easily obtained by differentiation, but I  
+    never explored this. The resulting code is often slow(er), compared to the second approach.
+2. Formulating the reccurence relations is very easy and the resulting code can be much faster. Currently, the actual code generation  
+     is less automated compared to the first approach, but one also has greater flexibility. Right now, the second approach yields only  
+     Fortran code, but extension to other languages would be trivial, as long as there is an associated sympy-Printer.
 
 ## Installation
 ```bash
@@ -18,6 +38,8 @@ python -m pip install -e .
 After successful installation the `sympleints` command should be available in the shell.
 
 ## Example usage
+
+Currently, only the first approach is exposed via the command line interface.
 
 ```bash
 $ sympleints --help
@@ -63,11 +85,11 @@ this, please see the module `pysisyphus.wavefunction.shells` in the
     3. Quadratic moment (quadrupole moment) integrals (order 2)
     4. Extension to higher multipoles would be trivial
   2. Kinetic energy integrals
-  3. Nuclear attraction integrals
+  3. Nuclear attraction integrals  (avaiable via first and second approach)
 
 ### 2-electron integrals
-  1. 2-center-2-electron integrals
-  2. 3-center-2-electron-integrals
+  1. 2-center-2-electron integrals (avaiable via first and second approach)
+  2. 3-center-2-electron-integrals (avaiable via first and second approach)
 
 Together, these two types of 2-electron integrals allow the implementation of density fitting.
 
@@ -77,7 +99,8 @@ of `sympleints`. Suitable code for the Boys-function is found in the
 
 ## Advantages
 The resulting Python code is surely not optimal, but very convenient to have and easy to use. Besides an implementation
-of the Boys-function, the resulting code only depends numpy. Understanding the integral generator is still possible.
+of the Boys-function, the resulting code only depends numpy. Understanding the integral generator is still possible for a
+simple minded python programmer as myself.
 
 Calculation of the overlap matrix with 1300 spherical basis functions (Tris(bipyridine)ruthenium(II))
 takes 9.5 s, calculation of the quadratic moment integrals requires 20.2 s. Maybe, these timings make the previous sentence more suitable for its placement in the Limiations section ;)
