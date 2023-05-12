@@ -10,7 +10,7 @@ from sympleints.graphs.triangle_rec import get_pos_dict
 
 
 # TODO: don't hardcode L_max=8 here, but use a more sensible value?!
-reduce_at_pos = get_pos_dict(L_max=8)
+reduce_at_pos = get_pos_dict(L_max=10)
 
 
 @functools.total_ordering
@@ -28,6 +28,8 @@ class LKind(Enum):
     iCART = 6, BFKind.CART
     jCART = 7, BFKind.CART
     kCART = 8, BFKind.CART
+    lCART = 9, BFKind.CART
+    mCART = 10, BFKind.CART
 
     sSPH = 0, BFKind.SPH
     pSPH = 1, BFKind.SPH
@@ -38,6 +40,8 @@ class LKind(Enum):
     iSPH = 6, BFKind.SPH
     jSPH = 7, BFKind.SPH
     kSPH = 8, BFKind.SPH
+    lSPH = 9, BFKind.SPH
+    mSPH = 10, BFKind.CART
 
     def __repr__(self):
         return self.name
