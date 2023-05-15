@@ -55,10 +55,15 @@ contains
       fncpntr => func_array(La, Lb)%f
 
       call fncpntr(axs, das, A, bxs, dbs, B, R, ress)
-      res(:, :) = reshape(ress, (/2*La+1, 2*Lb+1/))
+      if (La < Lb) then
+      	res(:, :) = reshape(ress, (/2*La+1, 2*Lb+1/), order=(/ 2, 1 /))
+      else
+      	res(:, :) = reshape(ress, (/2*La+1, 2*Lb+1/))
+      end if
   end subroutine {{ key }}
 
   {% for func in funcs %}
     {{ func }}
+
   {% endfor %}
 end module mod_{{ integral_name }}

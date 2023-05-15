@@ -2,8 +2,8 @@ from sympleints.graphs.Integral import Integral
 from sympleints.helpers import BFKind
 
 
-def get_int3c2e_integral(L_tots):
-    integral = Integral("int3c2e", L_tots, kinds=[BFKind.SPH, BFKind.SPH, BFKind.SPH])
+def get_int_3c2e(L_tots):
+    integral = Integral("int_3c2e", L_tots, kinds=[BFKind.SPH, BFKind.SPH, BFKind.SPH])
     integral.add_base("theta * kappa * boys(n, alpha * R2PC)")
     # VRR, buildup of A
     integral.add_transformation(

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import itertools as it
 from pathlib import Path
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple, TypeVar
 
 import networkx as nx
 from sympy import IndexedBase
@@ -96,6 +96,9 @@ def source_node_iter(G):
             yield node
 
 
+TGeneratedIntegral = TypeVar("TGeneratedIntegral", bound="GeneratedIntegral")
+
+
 @dataclass
 class GeneratedIntegral:
     integral: Integral
@@ -104,10 +107,48 @@ class GeneratedIntegral:
     assignments: List
     shell_size: int
     target_array_name: str
+    act_genint: Optional[TGeneratedIntegral] = None
 
     @property
     def key(self):
         return "".join(map(str, self.L_tots))
+
+    @property
+    def name(self):
+        return f"{self.integral.name}_{self.key}"
+
+    def get_equi_genint(self, L_tots):
+        return GeneratedIntegral(
+            integral=self.integral,
+            L_tots=L_tots,
+            array_defs={},
+            assignments=[],
+            shell_size=0,
+            target_array_name="",
+            act_genint=self,
+        )
+
+    def generate_equivalent(self) -> Tuple[TGeneratedIntegral]:
+        L_tots = self.L_tots
+        if len(L_tots) == 2:
+            La, Lb = L_tots
+            if La > Lb:
+                L_tots = (Lb, La)
+                return (self.get_equi_genint(L_tots),)
+        elif len(L_tots) == 3:
+            La, Lb, Lc = L_tots
+            if La > Lb:
+                L_tots = (Lb, La, Lc)
+                return (self.get_equi_genint(L_tots),)
+        elif len(L_tots) == 4:
+            La, Lb, Lc, Ld = L_tots
+            assert (La == Lc) and (
+                Lb == Ld
+            ), "Only Schwarz integrals are currently handled"
+            if (La > Lb) and (Lc > Ld):
+                L_tots = (Lb, La, Ld, Lc)
+                return (self.get_equi_genint(L_tots),)
+        return ()
 
 
 def generate_integral(L_tots: Sequence[int], integral: Integral) -> GeneratedIntegral:
@@ -156,8 +197,10 @@ def generate_integral(L_tots: Sequence[int], integral: Integral) -> GeneratedInt
     nsteps = len(integral.rrs)
     zip_ = list(zip(integral.rrs, fns))
     for i, (transform, G_fn) in enumerate(zip_):
-        print(f"Processing {name_with_L_tots} step {i+1}/{nsteps}, {transform.name}")
         G = nx.read_gexf(G_fn, node_type=AngMoms.from_str)
+        print(
+            f"Read {name_with_L_tots} step {i+1}/{nsteps}, {len(G):>5d} nodes, {transform.name}"
+        )
 
         names, name_map = array_names_from_G(G)
         index_map, key_index_map, size_map = get_index_map_for_graph(

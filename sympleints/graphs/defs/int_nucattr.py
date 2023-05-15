@@ -7,11 +7,10 @@ from sympleints.graphs.Integral import Integral
 from sympleints.helpers import BFKind
 
 
-def get_nucattr_integral(L_tots):
+def get_nucattr(L_tots):
     """2-center-1-electron nuclear attraction integral."""
 
-    name = "int_nucattr"
-    integral = Integral(name, L_tots, kinds=[BFKind.SPH, BFKind.SPH])
+    integral = Integral("int_nucattr", L_tots, kinds=[BFKind.SPH, BFKind.SPH])
     integral.add_base("2 * pi / px * K * boys(n, px * R2PR)")
     # VRR, buildup of A
     integral.add_transformation(

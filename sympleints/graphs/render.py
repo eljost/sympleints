@@ -16,15 +16,14 @@ def render_fortran(gen_integral):
     gi = gen_integral  # Shortcut
 
     print_func = get_fortran_print_func()
-    name = gi.integral.name
-    template = ENV.get_template(f"{name}_func.tpl")
+    template = ENV.get_template(f"{gi.integral.name}_func.tpl")
 
     blocks = dict()
     for block_name, cur_assignments in gi.assignments.items():
         lines = [print_func(ass) for ass in cur_assignments]
         blocks[block_name] = lines
     rendered = template.render(
-        name=f"{name}_{gi.key}",
+        name=gi.name,
         blocks=blocks,
         array_defs=gi.array_defs,
         shell_size=gi.shell_size,
@@ -35,10 +34,32 @@ def render_fortran(gen_integral):
     return rendered
 
 
+def render_fortran_equi(gen_integral):
+    gi = gen_integral  # Shortcut
+    ncenters = gi.integral.ncenters
+
+    template = ENV.get_template(f"int_equi_func_{ncenters}c.tpl")
+    rendered = template.render(
+        name=gi.name,
+        act_name=gi.act_genint.name,
+        act_size=gi.act_genint.integral.shell_size,
+        act_shape=gi.act_genint.integral.shell_shape,
+    )
+    return rendered
+
+
 def render_fortran_module(gen_integrals, lmax, lauxmax):
     gi0 = gen_integrals[0]
-    funcs = [render_fortran(gi) for gi in gen_integrals]
-    L_tots = [gi.L_tots for gi in gen_integrals]
+    funcs = list()
+    L_tots = list()
+    for genint in gen_integrals:
+        funcs.append(render_fortran(genint))
+        L_tots.append(genint.L_tots)
+        # Also create equivalent integrals
+        for equi_genint in genint.generate_equivalent():
+            funcs.append(render_fortran_equi(equi_genint))
+            L_tots.append(equi_genint.L_tots)
+
     tpl = ENV.get_template(f"{gi0.integral.name}_mod.tpl")
     rendered = tpl.render(
         integral_name=gi0.integral.name,
@@ -47,5 +68,6 @@ def render_fortran_module(gen_integrals, lmax, lauxmax):
         funcs=funcs,
         L_tots=L_tots,
     )
-    rendered = format_with_fprettify(rendered)
+    # Sadly, quite expensive for higher angular momenta.
+    # rendered = format_with_fprettify(rendered)
     return rendered

@@ -7,11 +7,9 @@ from sympleints.graphs.Integral import Integral
 from sympleints.helpers import BFKind
 
 
-def get_int2c2e_integral(L_tots):
+def get_int_2c2e(L_tots):
     """See C.2 Two-index Coulomb integrals in [1]."""
-
-    name = "int2c2e"
-    integral = Integral(name, L_tots, kinds=[BFKind.SPH, BFKind.SPH])
+    integral = Integral("int_2c2e", L_tots, kinds=[BFKind.SPH, BFKind.SPH])
     integral.add_base("2 * pi**2.5 / (sqrt(px) * ax * bx) * boys(n, mu * R2AB)")
     # VRR, buildup of A
     integral.add_transformation(

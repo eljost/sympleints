@@ -1,5 +1,5 @@
-subroutine {{ name }} (axs, das, A, bxs, dbs, B, res)
-  real(kind=real64), intent(in) :: A(3), B(3)
+subroutine {{ name }} (axs, das, A, bxs, dbs, B, R, res)
+  real(kind=real64), intent(in) :: A(3), B(3), R(3)
   real(kind=real64), intent(in) :: axs(:), bxs(:)
   real(kind=real64), intent(in) :: das(:), dbs(:)
   ! Orbital exponents

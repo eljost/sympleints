@@ -102,7 +102,7 @@ def expressions_can_merge(
     rhs_subs = get_subs(rhs_indexed, rhs_decr)
     # Substitute decrement indices into the expression and compare with
     # previous expression.
-    expr_subbed = Assignment(expr.lhs.subs(lhs_subs), expr.rhs.subs(rhs_subs))
+    expr_subbed = Assignment(expr.lhs.xreplace(lhs_subs), expr.rhs.xreplace(rhs_subs))
     can_merge = expr_subbed == prev_expr
     # Or substract expressions?
     # can_merge = sympy.simplify(expr_subbed - prev_expr) == 0
@@ -132,7 +132,7 @@ def merge(
         lhs_slice = IndexedSlice.from_start_and_end_indexed(
             start_lhs_indexed[0], lhs_indexed[0]
         )
-        mod_lhs = expr.lhs.subs(lhs_indexed[0], lhs_slice)
+        mod_lhs = expr.lhs.xreplace({lhs_indexed[0]: lhs_slice})
 
         # RHS is more complicated, because the same array may appear multiple times
         # with difference indices. To solve this problem we rely on the fact that
@@ -144,7 +144,7 @@ def merge(
         rhs_subs = dict()
         for rhsi in rhs_indexed:
             rhs_subs[rhsi] = IndexedSlice.from_end_indexed_and_distance(rhsi, distance)
-        mod_rhs = expr.rhs.subs(rhs_subs)
+        mod_rhs = expr.rhs.xreplace(rhs_subs)
         mod_expr = Assignment(mod_lhs, mod_rhs)
 
     return True, mod_expr

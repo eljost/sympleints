@@ -231,7 +231,7 @@ class RecurRel(Transform):
         # Pre-populate position vector substitutes
         for pos in range(3):
             pvs = [pv[pos] for pv in self.rr_expr.pos_vec_subs]
-            self.pos_vec_subs[pos] = list(zip(self.rr_expr.pos_vec_vars, pvs))
+            self.pos_vec_subs[pos] = dict(zip(self.rr_expr.pos_vec_vars, pvs))
         # TODO: pre-populate angular momentum?
 
     def apply(self, ang_moms, reduce_index=None, drop_none=True):
@@ -264,18 +264,20 @@ class RecurRel(Transform):
             if rhs_am is not None:
                 rhs_symbols[i] = compr_arr_map[rhs_am.as_key()][index_map[rhs_am]]
         # Substitute in integrals
-        ints_sub = zip(ints, rhs_symbols)
-        expr = self.rr_expr.expr.subs(ints_sub)
+        ints_sub = dict(zip(ints, rhs_symbols))
+        expr = self.rr_expr.expr.xreplace(ints_sub)
 
         # Substitute in coordinate arrays to replace PA[pos] etc.
-        expr = expr.subs(self.pos_vec_subs[pos])
+        expr = expr.xreplace(self.pos_vec_subs[pos])
 
         # Substitute in angular momenta to replace La[pos] etc.
-        ang_mom_subs = zip(
-            self.rr_expr.angmom_vars,
-            [ang_moms[i][pos] for i in self.rr_expr.angmom_subs],
+        ang_mom_subs = dict(
+            zip(
+                self.rr_expr.angmom_vars,
+                [ang_moms[i][pos] for i in self.rr_expr.angmom_subs],
+            )
         )
-        rhs = expr.subs(ang_mom_subs)
+        rhs = expr.xreplace(ang_mom_subs)
 
         return Assignment(lhs, rhs)
 

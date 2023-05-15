@@ -386,14 +386,10 @@ class AngMoms:
         return hash(self.ang_moms)
 
     def __eq__(self, other):
-        return all(
-            [this == other for this, other in zip(self.ang_moms, other.ang_moms)]
-        )
-
-    # Previously, __lt__ did not return anything, so I guess the function was not
-    # needed ...
-    # def __lt__(self, other):
-    # return self.ang_moms < other.ang_moms
+        for this, other in zip(self.ang_moms, other.ang_moms):
+            if this != other:
+                return False
+        return True
 
     def __repr__(self):
         return self.__str__()

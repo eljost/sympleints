@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from math import prod
 from typing import List, Optional, Tuple
 
 from sympy.codegen.ast import Assignment
@@ -161,16 +162,17 @@ class Integral:
         lhs = compr_arr_map[ang_moms.as_key()][index_map[ang_moms]]
         rhs = self._base.expr
         if self.with_aux:
-            rhs = rhs.subs(self._base.n, ang_moms.aux.n)
+            rhs = rhs.xreplace({self._base.n: ang_moms.aux.n})
         return Assignment(lhs, rhs)
 
     @property
-    def shell_size(self):
-        shell_size = 1
+    def shell_shape(self):
         size_funcs = {
             BFKind.CART: lambda L: (L + 2) * (L + 1) // 2,
             BFKind.SPH: lambda L: 2 * L + 1,
         }
-        for L, kind in zip(self.L_tots, self.kinds):
-            shell_size *= size_funcs[kind](L)
-        return shell_size
+        return [size_funcs[kind](L) for L, kind in zip(self.L_tots, self.kinds)]
+
+    @property
+    def shell_size(self):
+        return prod(self.shell_shape)
