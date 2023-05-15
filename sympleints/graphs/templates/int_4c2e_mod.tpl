@@ -58,7 +58,34 @@ contains
       else
       res(:, :, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*Lc+1, 2*Ld+1/))
       end if
-  end subroutine {{ key }}
+  end subroutine {{ integral_name }}
+
+  subroutine int_schwarz (La, Lb, axs, das, A, bxs, dbs, B, res)
+      integer, intent(in) :: La, Lb
+      ! Orbital exponents
+      real(kind=real64), intent(in) :: axs(:), bxs(:)
+      ! Contraction coefficients
+      real(kind=real64), intent(in) :: das(:), dbs(:)
+      ! Centers
+      real(kind=real64), intent(in) :: A(3), B(3)
+      real(kind=real64) :: R(3)
+      real(kind=real64), intent(out) :: res(:, :, :, :)
+
+      real(kind=real64), allocatable :: ress(:)
+      ! Initializing with => null () adds an implicit save, which will mess
+      ! everything up when running with OpenMP.
+      procedure({{ integral_name }}_proc), pointer :: fncpntr
+
+      allocate(ress(size(res)))
+      fncpntr => func_array(La, Lb, La, Lb)%f
+
+      call fncpntr(axs, das, A, bxs, dbs, B, axs, das, A, bxs, dbs, B, R, ress)
+      if (La < Lb) then
+        res(:, :, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*La+1, 2*Lb+1/), order=(/ 2, 1, 4, 3 /))
+      else
+      res(:, :, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*La+1, 2*Lb+1/))
+      end if
+  end subroutine int_schwarz
   
   {% for func in funcs %}
     {{ func }}
