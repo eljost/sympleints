@@ -2,9 +2,11 @@
 {{ header }}
 """
 
+{% if comment %}
 """
 {{ comment }}
 """
+{% endif %}
 
 import numpy
 {% if boys %}
