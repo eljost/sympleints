@@ -151,7 +151,9 @@ class GeneratedIntegral:
         return ()
 
 
-def generate_integral(L_tots: Sequence[int], integral: Integral) -> GeneratedIntegral:
+def generate_integral(
+    L_tots: Sequence[int], integral: Integral, do_plot: bool = False
+) -> GeneratedIntegral:
     key = "".join(map(str, L_tots))
 
     base = Path(".")
@@ -160,7 +162,11 @@ def generate_integral(L_tots: Sequence[int], integral: Integral) -> GeneratedInt
     for fn in fns:
         if not fn.exists():
             opt_integral_transforms(
-                L_tots, integral, with_aux=integral.with_aux, max_cycles=1
+                L_tots,
+                integral,
+                with_aux=integral.with_aux,
+                max_cycles=1,
+                do_plot=do_plot,
             )
             break
 

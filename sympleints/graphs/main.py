@@ -45,9 +45,10 @@ def schwarz_iter(lmax):
 
 def parse_args(args):
     parser = argparse.ArgumentParser()
+    parser.add_argument("key", choices=("nucattr", "int2c2e", "int3c2e", "schwarz"))
     parser.add_argument("--lmax", type=int, default=L_MAX)
     parser.add_argument("--lauxmax", type=int, default=L_AUX_MAX)
-    parser.add_argument("key", choices=("nucattr", "int2c2e", "int3c2e", "schwarz"))
+    parser.add_argument("--do-plot", action="store_true")
     return parser.parse_args(args)
 
 
@@ -56,6 +57,7 @@ def run():
     key = args.key
     lmax = args.lmax
     lauxmax = args.lauxmax
+    do_plot = args.do_plot
 
     iter_funcs = {
         # Nuclear attraction integrals
@@ -85,7 +87,7 @@ def run():
     for i, L_tots in enumerate(L_tots_iter):
         print(f"Integral {i:03d}")
         integral = int_func(L_tots)
-        gen_integrals.append(generate_integral(L_tots, integral))
+        gen_integrals.append(generate_integral(L_tots, integral, do_plot=do_plot))
     gen_dur = time.time() - start
 
     start = time.time()

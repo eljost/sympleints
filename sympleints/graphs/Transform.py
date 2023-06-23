@@ -284,6 +284,12 @@ class RecurRel(Transform):
     def target_node_iter(self, G, key_index_map):
         # Determine resolution order by collapsing the nodes to their keys.
         Gkey = collapse_to_key_graph(G)
+        # Uncomment for image generation
+        #
+        # from sympleints.graphs.helpers import dump_graph
+        # dump_name = f"collapsed_{self.name}_{''.join(map(str, self.L_tots))}.png"
+        # dump_graph(Gkey, dump_name)
+        #
         # Topological sort gives os the required evaluation order.
         node_gen = reversed(list(nx.topological_sort(Gkey)))
         target_keys = [node for node in node_gen if Gkey.out_degree(node) > 0]
