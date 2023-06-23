@@ -57,9 +57,11 @@ contains
 
       call fncpntr(axs, das, A, bxs, dbs, B, cxs, dcs, C, R, ress)
       if (La < Lb) then
-      	res(:, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*Lc+1/), order=(/ 2, 1, 3 /))
+      	res(:, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*Lc+1/), order=(/ 3, 1, 2 /))
       else
-      	res(:, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*Lc+1/))
+        ! Integrals in the 1d array ress are in C-order with Lc changing the fastest
+        ! (loop order La, Lb, Lc).
+      	res(:, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*Lc+1/), order=(/ 3, 2, 1 /))
       end if
       
   end subroutine {{ key }}
