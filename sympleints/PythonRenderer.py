@@ -32,7 +32,8 @@ class PythonRenderer(Renderer):
         # Here, we expect the orbital exponents and the contraction coefficients
         # to be 2d/3d/... numpy arrays. Then we can utilize array broadcasting
         # to evalute the integrals over products of primitive basis functions.
-        result_lines = [f"numpy.sum({line})" for line in result_lines]
+        if not functions.primitive:
+            result_lines = [f"numpy.sum({line})" for line in result_lines]
         # Drop ncomponents for simple integrals, as the python code can deal with
         # contracted GTOs via array broadcasting.
         if functions.ncomponents == 1:

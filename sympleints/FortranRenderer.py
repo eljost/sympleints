@@ -1,6 +1,7 @@
 import os
 import re
 import tempfile
+import warnings
 
 from sympy.codegen.ast import Assignment
 from sympy.printing.fortran import FCodePrinter
@@ -117,6 +118,9 @@ class FortranRenderer(Renderer):
     def render_function(
         self, functions, repls, reduced, shape, shape_iter, args, name, doc_str=""
     ):
+        if functions.primitive:
+            warnings.warn("primitive=True is currently ignored by FortranRenderer!")
+
         print_func = get_fortran_print_func()
         assignments = [Assignment(lhs, rhs) for lhs, rhs in repls]
         repl_lines = [print_func(as_) for as_ in assignments]

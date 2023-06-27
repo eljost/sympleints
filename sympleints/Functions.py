@@ -23,6 +23,7 @@ class Functions:
     full_name: Optional["str"] = None
     l_aux_max: Optional[int] = None
     spherical: bool = False
+    primitive: bool = False
 
     def __post_init__(self):
         assert self.l_max >= 0
