@@ -375,7 +375,7 @@ def make_header(args):
     See https://github.com/eljost/sympleints for more information.
 
     sympleints version: {{ version }}
-    symppy version: {{ sympy_version }}
+    sympy version: {{ sympy_version }}
 
     sympleints was executed with the following arguments:
     {% for k, v in args._get_kwargs() %}
