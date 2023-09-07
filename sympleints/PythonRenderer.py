@@ -8,6 +8,12 @@ class PythonRenderer(Renderer):
     ext = ".py"
     language = "Python"
 
+    _tpls = {
+        "func": "py_func.tpl",
+        "func_dict": "py_func_dict.tpl",
+        "module": "py_module.tpl",
+    }
+
     def render_function(
         self,
         functions,
@@ -41,7 +47,7 @@ class PythonRenderer(Renderer):
             shape_iter = [shape[1:] for shape in shape_iter]
         results_iter = zip(shape_iter, result_lines)
 
-        tpl = self.env.get_template("py_func.tpl")
+        tpl = self.get_template(key="func")
         rendered = tpl.render(
             name=name,
             args=args,
@@ -54,13 +60,13 @@ class PythonRenderer(Renderer):
         return rendered
 
     def render_func_dict(self, name, rendered_funcs):
-        tpl = self.env.get_template("py_func_dict.tpl")
+        tpl = self.get_template(key="func_dict")
         rendered = tpl.render(name=name, rendered_funcs=rendered_funcs)
         return rendered
 
     def render_module(self, functions, rendered_funcs):
         func_dict = self.render_func_dict(functions.name, rendered_funcs)
-        tpl = self.env.get_template("py_module.tpl")
+        tpl = self.get_template(key="module")
         rendered = tpl.render(
             header=functions.header,
             comment=functions.comment,
