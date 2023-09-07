@@ -1,11 +1,16 @@
+from collections.abc import Iterable
 import enum  # from enum import Enum
 import functools
 import itertools as it
+from pathlib import Path
 import sys
 import time
+from typing import List, Tuple
 
 from colorama import Fore, Style
 from sympy import IndexedBase, Matrix, Symbol
+
+from sympleints.config import CACHE_DIR
 
 
 L_MAP = {
@@ -33,7 +38,7 @@ class BFKind(enum.Enum):
 RST = Style.RESET_ALL  # colorama reset
 
 
-def canonical_order(L):
+def canonical_order(L: int) -> List[Tuple[int, int, int]]:
     inds = list()
     for i in range(L + 1):
         l = L - i
@@ -43,12 +48,12 @@ def canonical_order(L):
     return inds
 
 
-def sph_order(L):
+def sph_order(L: int) -> List[Tuple[int, int]]:
     # m from -L, -L + 1, ..., 0, 1, ..., L
     return [(L, m) for m in range(-L, L + 1)]
 
 
-def get_order_funcs_for_kinds(kinds):
+def get_order_funcs_for_kinds(kinds: Iterable[BFKind]):
     func_map = {
         BFKind.CART: canonical_order,
         BFKind.SPH: sph_order,
@@ -144,3 +149,12 @@ def get_timer_getter(**kwargs):
         return Timer(*args, **kwargs)
 
     return get_timer
+
+
+def get_path_in_cache_dir(fn, cwd=None):
+    if cwd is None:
+        cwd = Path(".")
+    cache_dir = cwd / CACHE_DIR
+    if not cache_dir.exists():
+        cache_dir.mkdir()
+    return cache_dir / fn

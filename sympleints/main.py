@@ -77,7 +77,11 @@ from sympleints.symbols import center_R, R, R_map
 
 from sympleints.defs.gto import gen_gto3d_shell
 from sympleints.defs.kinetic import gen_kinetic_shell
-from sympleints.defs.multipole import gen_diag_quadrupole_shell, gen_multipole_shell
+from sympleints.defs.multipole import (
+    gen_diag_quadrupole_shell,
+    gen_multipole_shell,
+    gen_multipole_sph_shell,
+)
 from sympleints.defs.overlap import gen_overlap_shell
 from sympleints.FortranRenderer import FortranRenderer
 from sympleints.Functions import Functions
@@ -98,6 +102,7 @@ KEYS = (
     "dpm",
     "dqpm",
     "qpm",
+    "multi_sph",
     "kin",
     "coul",
     "2c2e",
@@ -282,7 +287,9 @@ def integral_gen_for_L(
             # Repeat updated list of quantum numbers the correct number of times.
             lmns = list(it.chain(*[lmns for _ in range(components)]))
 
-    assert len(exprs) == len(lmns)
+    assert len(exprs) == len(
+        lmns
+    ), f"Got {len(exprs)} expressions, but {len(lmns)} angular momenta!"
     # Filter expressions, according to their quantum numbers.
     exprs, lmns = zip(
         *[(expr, lmns_) for expr, lmns_ in zip(exprs, lmns) if filter_func(*lmns_)]
@@ -368,7 +375,7 @@ def make_header(args):
     See https://github.com/eljost/sympleints for more information.
 
     sympleints version: {{ version }}
-    symppy version: {{ sympy_version }}
+    sympy version: {{ sympy_version }}
 
     sympleints was executed with the following arguments:
     {% for k, v in args._get_kwargs() %}
@@ -752,6 +759,59 @@ def run(args):
         )
         render_write(quadrupole_funcs)
 
+    ################################################
+    # Integrals for distributed multipole analysis #
+    ################################################
+
+    def multipole_sph():
+        def doc_func(L_tots):
+            La_tot, Lb_tot = L_tots
+            shell_a = L_MAP[La_tot]
+            shell_b = L_MAP[Lb_tot]
+            return (
+                f"Primitive {INT_KIND} 3D ({shell_a}{shell_b}) spherical multipole integrals.\n"
+                "In contrast to the other multipole integrals, the origin R is calculated\n"
+                "inside the function and is (possibly) unique for all primitive pairs."
+            )
+
+        Le_tot = 2
+        ncomponents = sum([2 * L + 1 for L in range(Le_tot + 1)])
+        ls_exprs = integral_gen(
+            lambda La_tot, Lb_tot: gen_multipole_sph_shell(
+                # La_tot, Lb_tot, ax, bx, center_A, center_B, center_R
+                # Don't provide an origin R, as it will unique for all primitive pairs
+                La_tot,
+                Lb_tot,
+                ax,
+                bx,
+                center_A,
+                center_B,
+                Le_tot=Le_tot,
+            ),
+            (l_max, l_max),
+            (ax, bx),
+            "spherical multipole",
+            (A_map, B_map, R_map),
+        )
+
+        sph_multipole_funcs = Functions(
+            name="multipole3d_sph",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            doc_func=doc_func,
+            # TODO: add comment
+            # comment=multipole_comment,
+            ncomponents=ncomponents,
+            with_ref_center=False,
+            header=header,
+            spherical=sph,
+            primitive=True,
+        )
+        render_write(sph_multipole_funcs)
+
     ############################
     # Kinetic energy integrals #
     ############################
@@ -999,6 +1059,7 @@ def run(args):
         "dpm": dipole,  # Linear moment (dipole) integrals
         "dqpm": diag_quadrupole,  # Diagonal part of the quadrupole tensor
         "qpm": quadrupole,  # Quadratic moment (quadrupole) integrals
+        "multi_sph": multipole_sph,  # Integrals for distributed multipole analysis
         "kin": kinetic,  # Kinetic energy integrals
         "coul": coulomb,  # 1-electron Coulomb integrals
         "2c2e": _2center2electron,  # 2-center-2-electron density fitting integrals

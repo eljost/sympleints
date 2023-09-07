@@ -1,6 +1,7 @@
 import os
 import re
 import tempfile
+import warnings
 
 from sympy.codegen.ast import Assignment
 from sympy.printing.fortran import FCodePrinter
@@ -66,6 +67,20 @@ class FCodePrinterMod(FCodePrinter):
         return f"{expr.org_name}({start}:{stop})"
 
 
+def get_fortran_print_func(**print_settings):
+    # This allows using the 'boys' function without producing an error
+    _print_settings = {
+        "allow_unknown_functions": True,
+        # Without disabling contract some expressions will raise ValueError.
+        "contract": False,
+        "standard": 2008,
+        "source_format": "free",
+    }
+    _print_settings.update(print_settings)
+    print_func = FCodePrinterMod(_print_settings).doprint
+    return print_func
+
+
 def make_fortran_comment(comment_str):
     return "".join([f"! {line}\n" for line in comment_str.strip().split("\n")])
 
@@ -103,15 +118,10 @@ class FortranRenderer(Renderer):
     def render_function(
         self, functions, repls, reduced, shape, shape_iter, args, name, doc_str=""
     ):
-        # This allows using the 'boys' function without producing an error
-        print_settings = {
-            "allow_unknown_functions": True,
-            # Without disabling contract some expressions will raise ValueError.
-            "contract": False,
-            "standard": 2008,
-            "source_format": "free",
-        }
-        print_func = FCodePrinterMod(print_settings).doprint
+        if functions.primitive:
+            warnings.warn("primitive=True is currently ignored by FortranRenderer!")
+
+        print_func = get_fortran_print_func()
         assignments = [Assignment(lhs, rhs) for lhs, rhs in repls]
         repl_lines = [print_func(as_) for as_ in assignments]
         results = [print_func(red) for red in reduced]
