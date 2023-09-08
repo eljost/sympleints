@@ -13,6 +13,7 @@ class PythonRenderer(Renderer):
         "func_dict": "py_func_dict.tpl",
         "module": "py_module.tpl",
     }
+    _primitive = False
 
     def render_function(
         self,
@@ -38,7 +39,7 @@ class PythonRenderer(Renderer):
         # Here, we expect the orbital exponents and the contraction coefficients
         # to be 2d/3d/... numpy arrays. Then we can utilize array broadcasting
         # to evalute the integrals over products of primitive basis functions.
-        if not functions.primitive:
+        if (not self._primitive) and (not functions.primitive):
             result_lines = [f"numpy.sum({line})" for line in result_lines]
         # Drop ncomponents for simple integrals, as the python code can deal with
         # contracted GTOs via array broadcasting.
@@ -64,16 +65,18 @@ class PythonRenderer(Renderer):
         rendered = tpl.render(name=name, rendered_funcs=rendered_funcs)
         return rendered
 
-    def render_module(self, functions, rendered_funcs):
+    def render_module(self, functions, rendered_funcs, **tpl_kwargs):
         func_dict = self.render_func_dict(functions.name, rendered_funcs)
         tpl = self.get_template(key="module")
-        rendered = tpl.render(
-            header=functions.header,
-            comment=functions.comment,
-            boys=functions.boys,
-            funcs=rendered_funcs,
-            func_dict=func_dict,
-        )
+        _tpl_kwargs = {
+            "header": functions.header,
+            "comment": functions.comment,
+            "boys": functions.boys,
+            "funcs": rendered_funcs,
+            "func_dict": func_dict,
+        }
+        _tpl_kwargs.update(tpl_kwargs)
+        rendered = tpl.render(**_tpl_kwargs)
         try:
             import black
 

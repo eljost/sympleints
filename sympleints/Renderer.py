@@ -20,6 +20,8 @@ class RenderedFunction:
 class Renderer(abc.ABC):
     _tpls = {}
     _suffix = ""
+    # Whether the functions/subroutines deal with primitive or contracted Gaussians
+    _primitive = True
 
     env = Environment(
         loader=PackageLoader("sympleints"),
@@ -91,7 +93,7 @@ class Renderer(abc.ABC):
         return rendered_funcs
 
     @abc.abstractmethod
-    def render_module(self, functions, rendered_funcs):
+    def render_module(self, functions, rendered_funcs, **tpl_kwargs):
         pass
 
     def render(self, functions: Functions):

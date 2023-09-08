@@ -1,9 +1,13 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Callable, List, Optional
 
 from sympy import Symbol
 
 from sympleints.symbols import R
+
+
+ArgKind = Enum("ArgKind", ("CONTR", "EXPO", "CENTER", "RESULT2", "RESULT3", "RESULT4"))
 
 
 @dataclass
@@ -28,6 +32,7 @@ class Functions:
     def __post_init__(self):
         assert self.l_max >= 0
         assert len(self.coeffs) == len(self.exponents) == len(self.centers)
+        assert self.ncomponents >= 0
 
         # This realizes the generator containing the expressions
         self.ls_exprs = list(self.ls_exprs)
@@ -52,6 +57,43 @@ class Functions:
         if self.with_ref_center:
             args += [str(self.ref_center)]
         return args
+
+    @property
+    def prim_container_args(self):
+        container_args = list()
+        for exponent, coeff, center in zip(self.exponents, self.coeffs, self.centers):
+            container_args.extend([f"{exponent}s", f"{coeff}s", f"{center}"])
+        return container_args
+
+    @property
+    def full_container_args(self):
+        container_args = self.prim_container_args
+        if self.with_ref_center:
+            container_args += [str(self.ref_center)]
+        return container_args
+
+    @property
+    def prim_arg_kinds(self) -> list[ArgKind]:
+        arg_kinds = list()
+
+        # Every involved basis function contributes
+        # one orbital exponent, one contraction coefficient and one center
+        for _ in range(self.nbfs):
+            arg_kinds += [ArgKind.EXPO, ArgKind.CONTR, ArgKind.CENTER]
+        return arg_kinds
+
+    @property
+    def full_arg_kinds(self) -> list[ArgKind]:
+        arg_kinds = self.prim_arg_kinds
+        if self.with_ref_center:
+            arg_kinds += [ArgKind.CENTER]
+        return arg_kinds
+
+    @property
+    def result_kind(self) -> ArgKind:
+        # Return RESULT2 when only 1 component is present
+        key = f"RESULT{self.ndim_act}"
+        return ArgKind[key]
 
     @property
     def ref_center(self):
@@ -89,5 +131,17 @@ class Functions:
         return ndim
 
     @property
+    def ndim_act(self):
+        # Return RESULT2 when only 1 component is present
+        ndim = self.ndim
+        ndim = ndim - 1 if self.ncomponents in (0, 1) else ndim
+        return ndim
+
+    @property
     def cartesian(self):
         return not self.spherical
+
+    # def numba_func_type(self):
+    # pass
+
+    # def numba_driver_type(self):

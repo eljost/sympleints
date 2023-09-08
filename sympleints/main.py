@@ -86,6 +86,7 @@ from sympleints.defs.overlap import gen_overlap_shell
 from sympleints.FortranRenderer import FortranRenderer
 from sympleints.Functions import Functions
 from sympleints.helpers import L_MAP
+from sympleints.NumbaRenderer import NumbaRenderer
 from sympleints.PythonRenderer import PythonRenderer
 
 try:
@@ -488,9 +489,10 @@ def run(args):
         cse_kwargs=cse_kwargs,
     )
     py_renderer = PythonRenderer()
+    numba_renderer = NumbaRenderer()
     f_renderer = FortranRenderer()
 
-    renderers = [py_renderer, f_renderer]
+    renderers = [py_renderer, numba_renderer, f_renderer]
 
     def render_write(funcs):
         fns = [renderer.render_write(funcs, out_dir) for renderer in renderers]

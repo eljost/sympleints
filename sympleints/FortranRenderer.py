@@ -91,6 +91,8 @@ class FortranRenderer(Renderer):
     res_name = "res"
     language = "Fortran"
 
+    _primitive = True
+
     def shell_shape_iter(self, *args, **kwargs):
         # Start indexing at 1, instead of 0.
         return shell_shape_iter(*args, start_at=1, **kwargs)
@@ -118,8 +120,8 @@ class FortranRenderer(Renderer):
     def render_function(
         self, functions, repls, reduced, shape, shape_iter, args, name, doc_str=""
     ):
-        if functions.primitive:
-            warnings.warn("primitive=True is currently ignored by FortranRenderer!")
+        if (not functions.primitive) or (not self._primitive):
+            warnings.warn("FortranRenderer always produces subroutines for primitives!")
 
         print_func = get_fortran_print_func()
         assignments = [Assignment(lhs, rhs) for lhs, rhs in repls]
@@ -250,7 +252,7 @@ class FortranRenderer(Renderer):
         )
         return rendered
 
-    def render_module(self, functions, rendered_funcs):
+    def render_module(self, functions, rendered_funcs, **tpl_kwargs):
         comment = make_fortran_comment(functions.comment)
         header = make_fortran_comment(functions.header)
 
