@@ -7,7 +7,9 @@ from sympy import Symbol
 from sympleints.symbols import R
 
 
-ArgKind = Enum("ArgKind", ("CONTR", "EXPO", "CENTER", "RESULT2", "RESULT3", "RESULT4"))
+ArgKind = Enum(
+    "ArgKind", ("CONTR", "EXPO", "CENTER", "RESULT1", "RESULT2", "RESULT3", "RESULT4")
+)
 
 
 @dataclass
@@ -23,7 +25,7 @@ class Functions:
     comment: str = ""
     boys: bool = False
     ncomponents: int = 0
-    with_ref_center: bool = False
+    with_ref_center: bool = True
     full_name: Optional["str"] = None
     l_aux_max: Optional[int] = None
     spherical: bool = False
@@ -92,7 +94,8 @@ class Functions:
     @property
     def result_kind(self) -> ArgKind:
         # Return RESULT2 when only 1 component is present
-        key = f"RESULT{self.ndim_act}"
+        # key = f"RESULT{self.ndim_act}"
+        key = f"RESULT{self.ndim}"
         return ArgKind[key]
 
     @property

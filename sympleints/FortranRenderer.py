@@ -92,6 +92,7 @@ class FortranRenderer(Renderer):
     language = "Fortran"
 
     _primitive = True
+    _drop_dim = False
 
     def shell_shape_iter(self, *args, **kwargs):
         # Start indexing at 1, instead of 0.

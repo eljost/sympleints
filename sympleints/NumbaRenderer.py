@@ -6,6 +6,7 @@ _type_map = {
     ArgKind.EXPO: "f8",
     ArgKind.CONTR: "f8",
     ArgKind.CENTER: "f8[:]",
+    ArgKind.RESULT1: "f8[:]",
     ArgKind.RESULT2: "f8[:, :]",
     ArgKind.RESULT3: "f8[:, :, :]",
     ArgKind.RESULT4: "f8[:, :, :, :]",
@@ -54,6 +55,7 @@ class NumbaRenderer(PythonRenderer):
     }
     _suffix = "_numba"
     _primitive = True
+    _drop_dim = False
 
     def render_driver_func(self, functions, rendered_funcs):
         # Render func_dict inside driver

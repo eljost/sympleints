@@ -4,10 +4,10 @@ driver_func_type = numba.types.FunctionType(
     {{ driver_func_type }}
 )
 
-
-@numba.jit(func_dict_type(), nopython=True)
+# Sadly, this function can't be cached.
+@numba.jit(func_dict_type(), nopython=True, cache=True)
 def get_func_dict():
-    # Can we somehow utilize the type definition above?!
+    # Can we somehow utilize the 'func_dict_type' definition above?!
     #
     # This definition below does not work but leads to strange errors.
     # func_dict = numba.typed.Dict.empty(
@@ -25,7 +25,7 @@ def get_func_dict():
     return func_dict
 
 
-
+{#
 @numba.jit(
     driver_func_type.signature,
     nopython=True,
@@ -73,3 +73,4 @@ def {{ name }}({{ Ls_args }}, {{ container_args }}, func_dict):
                 func({{ args }}, result)
 	{% endif %}
     return result
+#}

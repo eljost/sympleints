@@ -3,6 +3,7 @@
     nopython=True,
     nogil=True,
     fastmath=True,
+    cache=True,
 )
 def {{ name }}({{ args }}, result):
     {% if doc_str %}

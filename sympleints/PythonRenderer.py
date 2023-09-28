@@ -14,6 +14,7 @@ class PythonRenderer(Renderer):
         "module": "py_module.tpl",
     }
     _primitive = False
+    _drop_dim = True
 
     def render_function(
         self,
@@ -43,7 +44,7 @@ class PythonRenderer(Renderer):
             result_lines = [f"numpy.sum({line})" for line in result_lines]
         # Drop ncomponents for simple integrals, as the python code can deal with
         # contracted GTOs via array broadcasting.
-        if functions.ncomponents == 1:
+        if self._drop_dim and functions.ncomponents == 1:
             shape = shape[1:]
             shape_iter = [shape[1:] for shape in shape_iter]
         results_iter = zip(shape_iter, result_lines)
