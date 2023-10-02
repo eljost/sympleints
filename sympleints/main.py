@@ -370,6 +370,47 @@ def integral_gen_getter(
     return integral_gen
 
 
+def integral_gen_getter(
+    contr_coeffs, sph=False, normalization=Normalization.NONE, cse_kwargs=None
+):
+    def integral_gen(
+        int_func,
+        L_maxs,
+        exponents,
+        name,
+        maps=None,
+        sph=sph,
+        L_iter=None,
+        filter_func=None,
+    ):
+        if maps is None:
+            maps = list()
+        ranges = [range(L + 1) for L in L_maxs]
+
+        if L_iter is None:
+            L_iter = it.product(*ranges)
+
+        L_iter = list(L_iter)
+
+        def inner(Ls):
+            return integral_gen_for_L(
+                int_func,
+                Ls,
+                exponents,
+                contr_coeffs,
+                name,
+                maps,
+                sph,
+                normalization,
+                cse_kwargs,
+                filter_func=filter_func,
+            )
+
+        return L_iter, inner
+
+    return integral_gen
+
+
 def make_header(args):
     cmd = " ".join(sys.argv)
     tpl = Template(

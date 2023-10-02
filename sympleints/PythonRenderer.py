@@ -4,6 +4,18 @@ from sympy.printing.numpy import NumPyPrinter
 from sympleints.Renderer import Renderer
 
 
+class NumPyPrinterMod(NumPyPrinter):
+    def _print_AppliedUndef(self, expr):
+        """For printing the Boys function.
+
+        We used AppliedUndef instead of Function for the Boys function,
+        as an applied undefinied function can't be pickled by dill."""
+
+        name, *args = expr.args
+        args_str = ", ".join(map(str, args))
+        return f"{name}({args_str})"
+
+
 class PythonRenderer(Renderer):
     ext = ".py"
     language = "Python"
@@ -31,7 +43,7 @@ class PythonRenderer(Renderer):
         print_settings = {
             "allow_unknown_functions": True,
         }
-        print_func = NumPyPrinter(print_settings).doprint
+        print_func = NumPyPrinterMod(print_settings).doprint
 
         args = ", ".join([str(arg) for arg in args])
         assignments = [Assignment(lhs, rhs) for lhs, rhs in repls]

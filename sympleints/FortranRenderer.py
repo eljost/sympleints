@@ -41,6 +41,7 @@ def format_with_fprettify(fortran: str):
 class FCodePrinterMod(FCodePrinter):
     boys_re = re.compile(r"boys\(([d\d\.]+),(.+)")
 
+    """
     def _print_Function(self, expr):
         func = super()._print_Function(expr)
         # Sympy prints everything as float (1.0d0, 2.0d0 etc.), even integers, but the
@@ -54,6 +55,16 @@ class FCodePrinterMod(FCodePrinter):
                 remainder = mobj.group(2)
                 func = f"boys({as_int},{remainder}"
         return func
+    """
+
+    def _print_AppliedUndef(self, expr):
+        """For printing the Boys function.
+
+        We used AppliedUndef instead of Function for the Boys function,
+        as an applied undefinied function can't be pickled by dill."""
+        name, *args = expr.args
+        args_str = ", ".join(map(str, args))
+        return f"{name}({args_str})"
 
     def _print_Indexed(self, expr):
         # prints I[0] as I[1], i.e., increments the index by one.

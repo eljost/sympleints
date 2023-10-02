@@ -1,14 +1,15 @@
 import functools
 
 import numpy as np
-from sympy import exp, Function, pi, sqrt, IndexedBase
+from sympy import exp, Function, IndexedBase, pi, sqrt
 
 from sympleints import shell_iter
 from sympleints.defs import TwoCenter1d
+from sympy.core.function import AppliedUndef
 
 # Placeholder for the Boys-function. The actual Boys-function will be
 # imported in the generated python module.
-boys_func = Function("boys")
+# boys_func = Function("boys")
 boys_arr = IndexedBase("boys")
 
 
@@ -17,7 +18,14 @@ def boys(N, x, return_arr=False):
     if return_arr:
         return boys_arr[N]
     else:
-        return boys_func(N, x)
+        # The applied undefinied function resulting from 'return boys_Func(N, x)' can't
+        # be pickled by dill, breaking pathos multiprocessing. See sympy issue 4297
+        # (https://github.com/sympy/sympy/issues/4297).
+        #
+        # Instead, we return an AppliedUndef and extend our printers to print
+        # this correctly.
+        # return boys_func(N, x)
+        return AppliedUndef("boys", N, x)
 
 
 class Coulomb(TwoCenter1d):

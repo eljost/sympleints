@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, List, Optional
 
+from pathos.pools import ProcessPool
+import psutil
 from sympy import Symbol
 
 from sympleints.symbols import R
@@ -30,14 +32,27 @@ class Functions:
     l_aux_max: Optional[int] = None
     spherical: bool = False
     primitive: bool = False
+    parallel: Optional[bool] = True
 
     def __post_init__(self):
         assert self.l_max >= 0
         assert len(self.coeffs) == len(self.exponents) == len(self.centers)
         assert self.ncomponents >= 0
 
-        # This realizes the generator containing the expressions
-        self.ls_exprs = list(self.ls_exprs)
+        L_iter, inner = self.ls_exprs
+        self.L_iter = L_iter
+        if self.parallel:
+            # This realizes the generator containing the expressions
+            #
+            # ... either in parallel
+            # use all but 1 CPU cores
+            nodes = max(1, psutil.cpu_count(logical=False) - 1)
+            pool = ProcessPool(nodes=nodes)
+            self.ls_exprs = pool.map(inner, L_iter)
+        else:
+            #
+            # ... or in serial
+            self.ls_exprs = [inner(Ls) for Ls in L_iter]
 
         if self.full_name is None:
             self.full_name = self.name
@@ -93,8 +108,6 @@ class Functions:
 
     @property
     def result_kind(self) -> ArgKind:
-        # Return RESULT2 when only 1 component is present
-        # key = f"RESULT{self.ndim_act}"
         key = f"RESULT{self.ndim}"
         return ArgKind[key]
 
@@ -108,7 +121,7 @@ class Functions:
 
     @property
     def ls(self):
-        return [ls for ls, _ in self.ls_exprs]
+        return self.L_iter
 
     @property
     def nbfs(self):
@@ -117,9 +130,7 @@ class Functions:
     @property
     def ls_name_map(self):
         name = self.name
-        return {
-            ls: f"{name}_" + "".join([str(l) for l in ls]) for ls, _ in self.ls_exprs
-        }
+        return {ls: f"{name}_" + "".join([str(l) for l in ls]) for ls in self.ls}
 
     @property
     def ndim(self):
