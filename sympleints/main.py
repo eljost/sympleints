@@ -99,7 +99,6 @@ except ModuleNotFoundError:
 
 KEYS = (
     "gto",
-    # "sovlp",
     "ovlp",
     "dpm",
     "dqpm",
@@ -343,54 +342,12 @@ def integral_gen_getter(
         name,
         maps=None,
         sph=sph,
-        L_iter=None,
         filter_func=None,
     ):
         if maps is None:
             maps = list()
         ranges = [range(L + 1) for L in L_maxs]
-
-        if L_iter is None:
-            L_iter = it.product(*ranges)
-
-        for Ls in L_iter:
-            yield integral_gen_for_L(
-                int_func,
-                Ls,
-                exponents,
-                contr_coeffs,
-                name,
-                maps,
-                sph,
-                normalization,
-                cse_kwargs,
-                filter_func=filter_func,
-            )
-
-    return integral_gen
-
-
-def integral_gen_getter(
-    contr_coeffs, sph=False, normalization=Normalization.NONE, cse_kwargs=None
-):
-    def integral_gen(
-        int_func,
-        L_maxs,
-        exponents,
-        name,
-        maps=None,
-        sph=sph,
-        L_iter=None,
-        filter_func=None,
-    ):
-        if maps is None:
-            maps = list()
-        ranges = [range(L + 1) for L in L_maxs]
-
-        if L_iter is None:
-            L_iter = it.product(*ranges)
-
-        L_iter = list(L_iter)
+        L_iter = list(it.product(*ranges))
 
         def inner(Ls):
             return integral_gen_for_L(
@@ -577,41 +534,6 @@ def run(args):
             spherical=sph,
         )
         render_write(gto_funcs)
-
-    ################
-    # Self Overlap #
-    ################
-
-    def self_overlap():
-        def doc_func(L_tots):
-            (La_tot, _) = L_tots
-            shell_a = L_MAP[La_tot]
-            return f"{INT_KIND} 3D ({shell_a}{shell_a}) self overlap."
-
-        ls_exprs = integral_gen(
-            lambda La_tot, Lb_tot: gen_overlap_shell(La_tot, Lb_tot, ax, bx, A, A),
-            (l_max, l_max),
-            (ax, bx),
-            "self_ovlp3d",
-            (A_map,),
-            L_iter=[(L, L) for L in range(l_max + 1)],
-            # Only keep the diagonal elements where all quantum numbers are identical.
-            filter_func=lambda nlma, nlmb: nlma == nlmb,
-        )
-
-        self_ovlp_funcs = Functions(
-            name="self_ovlp3d",
-            l_max=l_max,
-            coeffs=[da, db],
-            exponents=[ax, bx],
-            centers=[A, B],  # Not actually needed
-            ls_exprs=ls_exprs,
-            ncomponents=1,
-            doc_func=doc_func,
-            header=header,
-            spherical=sph,
-        )
-        render_write(self_ovlp_funcs)
 
     #####################
     # Overlap integrals #
@@ -1094,7 +1016,6 @@ def run(args):
 
     funcs = {
         "gto": gto,  # Cartesian Gaussian-type-orbital for density evaluation
-        # "sovlp": self_overlap,  # Self overlap
         "ovlp": overlap,  # Overlap integrals
         "dpm": dipole,  # Linear moment (dipole) integrals
         "dqpm": diag_quadrupole,  # Diagonal part of the quadrupole tensor
