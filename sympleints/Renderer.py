@@ -18,6 +18,11 @@ class RenderedFunction:
 
 
 class Renderer(abc.ABC):
+    _tpls = {}
+    _suffix = ""
+    # Whether the functions/subroutines deal with primitive or contracted Gaussians
+    _primitive = True
+
     env = Environment(
         loader=PackageLoader("sympleints"),
         # We proably don't need autoescape...
@@ -25,6 +30,15 @@ class Renderer(abc.ABC):
         trim_blocks=True,
         lstrip_blocks=True,
     )
+
+    def get_template(self, *, key=None, fn=None):
+        assert (key is not None) or (
+            fn is not None
+        ), "Either 'key' or 'fn' must be provided!"
+        if key is not None:
+            fn = self._tpls[key]
+        tpl = self.env.get_template(fn)
+        return tpl
 
     def shell_shape_iter(self, *args, **kwargs):
         return shell_shape_iter(*args, **kwargs)
@@ -79,7 +93,7 @@ class Renderer(abc.ABC):
         return rendered_funcs
 
     @abc.abstractmethod
-    def render_module(self, functions, rendered_funcs):
+    def render_module(self, functions, rendered_funcs, **tpl_kwargs):
         pass
 
     def render(self, functions: Functions):
@@ -98,5 +112,5 @@ class Renderer(abc.ABC):
 
     def render_write(self, functions: Functions, out_dir: Path):
         module = self.render(functions)
-        fn = self.write(out_dir, functions.name + self.ext, module)
+        fn = self.write(out_dir, functions.name + self._suffix + self.ext, module)
         return fn

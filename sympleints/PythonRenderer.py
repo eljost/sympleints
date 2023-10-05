@@ -4,9 +4,29 @@ from sympy.printing.numpy import NumPyPrinter
 from sympleints.Renderer import Renderer
 
 
+class NumPyPrinterMod(NumPyPrinter):
+    def _print_AppliedUndef(self, expr):
+        """For printing the Boys function.
+
+        We used AppliedUndef instead of Function for the Boys function,
+        as an applied undefinied function can't be pickled by dill."""
+
+        name, *args = expr.args
+        args_str = ", ".join(map(str, args))
+        return f"{name}({args_str})"
+
+
 class PythonRenderer(Renderer):
     ext = ".py"
     language = "Python"
+
+    _tpls = {
+        "func": "py_func.tpl",
+        "func_dict": "py_func_dict.tpl",
+        "module": "py_module.tpl",
+    }
+    _primitive = False
+    _drop_dim = True
 
     def render_function(
         self,
@@ -23,7 +43,7 @@ class PythonRenderer(Renderer):
         print_settings = {
             "allow_unknown_functions": True,
         }
-        print_func = NumPyPrinter(print_settings).doprint
+        print_func = NumPyPrinterMod(print_settings).doprint
 
         args = ", ".join([str(arg) for arg in args])
         assignments = [Assignment(lhs, rhs) for lhs, rhs in repls]
@@ -32,16 +52,16 @@ class PythonRenderer(Renderer):
         # Here, we expect the orbital exponents and the contraction coefficients
         # to be 2d/3d/... numpy arrays. Then we can utilize array broadcasting
         # to evalute the integrals over products of primitive basis functions.
-        if not functions.primitive:
+        if (not self._primitive) and (not functions.primitive):
             result_lines = [f"numpy.sum({line})" for line in result_lines]
         # Drop ncomponents for simple integrals, as the python code can deal with
         # contracted GTOs via array broadcasting.
-        if functions.ncomponents == 1:
+        if self._drop_dim and functions.ncomponents == 1:
             shape = shape[1:]
             shape_iter = [shape[1:] for shape in shape_iter]
         results_iter = zip(shape_iter, result_lines)
 
-        tpl = self.env.get_template("py_func.tpl")
+        tpl = self.get_template(key="func")
         rendered = tpl.render(
             name=name,
             args=args,
@@ -54,20 +74,22 @@ class PythonRenderer(Renderer):
         return rendered
 
     def render_func_dict(self, name, rendered_funcs):
-        tpl = self.env.get_template("py_func_dict.tpl")
+        tpl = self.get_template(key="func_dict")
         rendered = tpl.render(name=name, rendered_funcs=rendered_funcs)
         return rendered
 
-    def render_module(self, functions, rendered_funcs):
+    def render_module(self, functions, rendered_funcs, **tpl_kwargs):
         func_dict = self.render_func_dict(functions.name, rendered_funcs)
-        tpl = self.env.get_template("py_module.tpl")
-        rendered = tpl.render(
-            header=functions.header,
-            comment=functions.comment,
-            boys=functions.boys,
-            funcs=rendered_funcs,
-            func_dict=func_dict,
-        )
+        tpl = self.get_template(key="module")
+        _tpl_kwargs = {
+            "header": functions.header,
+            "comment": functions.comment,
+            "boys": functions.boys,
+            "funcs": rendered_funcs,
+            "func_dict": func_dict,
+        }
+        _tpl_kwargs.update(tpl_kwargs)
+        rendered = tpl.render(**_tpl_kwargs)
         try:
             import black
 

@@ -41,6 +41,7 @@ def format_with_fprettify(fortran: str):
 class FCodePrinterMod(FCodePrinter):
     boys_re = re.compile(r"boys\(([d\d\.]+),(.+)")
 
+    """
     def _print_Function(self, expr):
         func = super()._print_Function(expr)
         # Sympy prints everything as float (1.0d0, 2.0d0 etc.), even integers, but the
@@ -54,6 +55,16 @@ class FCodePrinterMod(FCodePrinter):
                 remainder = mobj.group(2)
                 func = f"boys({as_int},{remainder}"
         return func
+    """
+
+    def _print_AppliedUndef(self, expr):
+        """For printing the Boys function.
+
+        We used AppliedUndef instead of Function for the Boys function,
+        as an applied undefinied function can't be pickled by dill."""
+        name, *args = expr.args
+        args_str = ", ".join(map(str, args))
+        return f"{name}({args_str})"
 
     def _print_Indexed(self, expr):
         # prints I[0] as I[1], i.e., increments the index by one.
@@ -91,12 +102,15 @@ class FortranRenderer(Renderer):
     res_name = "res"
     language = "Fortran"
 
+    _primitive = True
+    _drop_dim = False
+
     def shell_shape_iter(self, *args, **kwargs):
         # Start indexing at 1, instead of 0.
         return shell_shape_iter(*args, start_at=1, **kwargs)
 
     def get_argument_declaration(self, functions, contracted=False):
-        tpl = self.env.get_template("fortran_arg_declaration.tpl")
+        tpl = self.get_template(fn="fortran_arg_declaration.tpl")
         arg_dim = "(:)" if contracted else ""
         res_dim = ", ".join(":" for _ in range(functions.ndim))
         rendered = tpl.render(
@@ -118,8 +132,8 @@ class FortranRenderer(Renderer):
     def render_function(
         self, functions, repls, reduced, shape, shape_iter, args, name, doc_str=""
     ):
-        if functions.primitive:
-            warnings.warn("primitive=True is currently ignored by FortranRenderer!")
+        if (not functions.primitive) or (not self._primitive):
+            warnings.warn("FortranRenderer always produces subroutines for primitives!")
 
         print_func = get_fortran_print_func()
         assignments = [Assignment(lhs, rhs) for lhs, rhs in repls]
@@ -131,7 +145,7 @@ class FortranRenderer(Renderer):
         doc_str = make_fortran_comment(doc_str)
         arg_declaration = self.get_argument_declaration(functions)
 
-        tpl = self.env.get_template("fortran_function.tpl")
+        tpl = self.get_template(fn="fortran_function.tpl")
         rendered = tpl.render(
             name=name,
             args=functions.full_args,
@@ -184,7 +198,7 @@ class FortranRenderer(Renderer):
         doc_str = make_fortran_comment(doc_str)
         arg_declaration = self.get_argument_declaration(functions)
 
-        tpl = self.env.get_template("fortran_function_arr.tpl")
+        tpl = self.get_template(fn="fortran_function_arr.tpl")
         rendered = tpl.render(
                 name=name,
                 args=functions.full_args,
@@ -203,7 +217,7 @@ class FortranRenderer(Renderer):
     """
 
     def render_f_init(self, name, rendered_funcs, func_array_name="func_array"):
-        tpl = self.env.get_template("fortran_init.tpl")
+        tpl = self.get_template(fn="fortran_init.tpl")
         f_init = tpl.render(
             name=name,
             funcs=rendered_funcs,
@@ -212,7 +226,7 @@ class FortranRenderer(Renderer):
         return f_init
 
     def render_contracted_driver(self, functions):
-        tpl = self.env.get_template("fortran_contracted_driver.tpl")
+        tpl = self.get_template(fn="fortran_contracted_driver.tpl")
         args = functions.prim_args + [functions.ref_center, self.res_name]
         arg_declaration = self.get_argument_declaration(functions, contracted=True)
         res_dim = ", ".join(":" for _ in range(functions.ndim))
@@ -250,7 +264,7 @@ class FortranRenderer(Renderer):
         )
         return rendered
 
-    def render_module(self, functions, rendered_funcs):
+    def render_module(self, functions, rendered_funcs, **tpl_kwargs):
         comment = make_fortran_comment(functions.comment)
         header = make_fortran_comment(functions.header)
 
@@ -264,7 +278,7 @@ class FortranRenderer(Renderer):
         func_arr_dims = [f"0:{l_max}" for _ in range(functions.nbfs)]
         contr_driver = self.render_contracted_driver(functions)
 
-        tpl = self.env.get_template("fortran_module.tpl")
+        tpl = self.get_template(fn="fortran_module.tpl")
         rendered = tpl.render(
             header=header,
             mod_name=mod_name,
