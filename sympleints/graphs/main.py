@@ -13,34 +13,7 @@ from sympleints.graphs.defs.int_3c2e import get_int_3c2e
 from sympleints.graphs.defs.int_4c2e import get_int_4c2e
 from sympleints.graphs.generate import generate_integral
 from sympleints.graphs.render import render_fortran_module
-
-
-# Note the order (Lb, La) in the iterators below, ensuring Lb >= La.
-# As the OS recursion relations build up angular momentum from left to right
-# it is most economical to increase angular momentum at the left-most index first.
-# Basically the wrappers below are thin wrappers around itertools-functions to
-# yield column-major indices.
-
-
-def ll_iter(lmax):
-    # Note the order (Lb, La), ensuring Lb >= La.
-    for Lb, La in it.combinations_with_replacement(range(lmax + 1), 2):
-        yield (La, Lb)
-
-
-def lllaux_iter(lmax, lauxmax):
-    # Note the order (Lb, La), ensuring Lb >= La.
-    for Lb, La in it.combinations_with_replacement(range(lmax + 1), 2):
-        for Lc in range(lauxmax + 1):
-            yield (La, Lb, Lc)
-
-
-def schwarz_iter(lmax):
-    # Note the order (Lb, La), ensuring Lb >= La.
-    # Yields total angular momenta for Schwarz integrals
-    # (00|00), (10|10), (11|11) etc.
-    for Lb, La in it.combinations_with_replacement(range(lmax + 1), 2):
-        yield La, Lb, La, Lb
+from sympleints.liters import ll_iter, lllaux_iter, schwarz_iter
 
 
 def parse_args(args):

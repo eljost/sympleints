@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-import enum  # from enum import Enum
+import enum
 import functools
 import itertools as it
 from pathlib import Path
