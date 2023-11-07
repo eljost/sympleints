@@ -13,7 +13,7 @@ from sympleints.graphs.defs.int_3c2e import get_int_3c2e
 from sympleints.graphs.defs.int_4c2e import get_int_4c2e
 from sympleints.graphs.generate import generate_integral
 from sympleints.graphs.render import render_fortran_module
-from sympleints.liters import ll_iter, lllaux_iter, schwarz_iter
+from sympleints.l_iters import ll_iter, lllaux_iter, schwarz_iter
 
 
 def parse_args(args):

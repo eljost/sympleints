@@ -4,7 +4,7 @@ import itertools as it
 # As the OS recursion relations build up angular momentum from left to right
 # it is most economical to increase angular momentum at the left-most index first.
 # Basically the wrappers below are thin wrappers around itertools-functions to
-# yield column-major indices.
+# yield COLUMN-MAJOR indices.
 
 
 def ll_iter(lmax):
