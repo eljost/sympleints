@@ -65,6 +65,8 @@ from sympleints import (
     get_timer_getter,
 )
 from sympleints.config import L_MAX, L_AUX_MAX, PREC
+
+# Integral definitions
 from sympleints.defs.coulomb import (
     CoulombShell,
     TwoCenterTwoElectronShell,
@@ -73,8 +75,6 @@ from sympleints.defs.coulomb import (
 )
 
 # from sympleints.defs.fourcenter_overlap import gen_fourcenter_overlap_shell
-from sympleints.symbols import center_R, R, R_map
-
 from sympleints.defs.gto import gen_gto3d_shell
 from sympleints.defs.kinetic import gen_kinetic_shell
 from sympleints.defs.multipole import (
@@ -83,11 +83,15 @@ from sympleints.defs.multipole import (
     gen_multipole_sph_shell,
 )
 from sympleints.defs.overlap import gen_overlap_shell
-from sympleints.FortranRenderer import FortranRenderer
 from sympleints.Functions import Functions
 from sympleints.helpers import L_MAP
+from sympleints.l_iters import ll_iter, lllaux_iter
+
+# Renderer
+from sympleints.FortranRenderer import FortranRenderer
 from sympleints.NumbaRenderer import NumbaRenderer
 from sympleints.PythonRenderer import PythonRenderer
+from sympleints.symbols import center_R, R, R_map
 
 try:
     from pysisyphus.wavefunction.cart2sph import cart2sph_coeffs, cart2sph_nlms
@@ -239,7 +243,8 @@ def integral_gen_for_L(
         def filter_func(*args):
             return True
 
-    get_timer = get_timer_getter(prefix="\t... ", width=45, logger=None)
+    name_L = f"{name}_{''.join(map(str, Ls))}"
+    get_timer = get_timer_getter(prefix=f"\t{name_L} ... ", width=45, logger=None)
 
     expect_nexprs = len(list(shell_iter(Ls)))
     # Actually create expressions by calling the passed function.
@@ -327,7 +332,7 @@ def integral_gen_for_L(
             )
 
     dur = datetime.now() - start
-    print(f"\t... finished in {str(dur)} h")
+    print(f"\t{name_L} ... finished in {str(dur)} h")
     sys.stdout.flush()
     return Ls, (repls, reduced)
 
@@ -343,11 +348,15 @@ def integral_gen_getter(
         maps=None,
         sph=sph,
         filter_func=None,
+        L_iter=None,
     ):
         if maps is None:
             maps = list()
         ranges = [range(L + 1) for L in L_maxs]
-        L_iter = list(it.product(*ranges))
+
+        if L_iter is None:
+            L_iter = it.product(*ranges)
+        L_iter = list(L_iter)
 
         def inner(Ls):
             return integral_gen_for_L(
@@ -417,7 +426,7 @@ def parse_args(args):
     )
     parser.add_argument(
         "--out-dir",
-        default="devel_ints",
+        default="ints",
         help="Directory, where the generated integrals are written.",
     )
     keys_str = f"({', '.join(KEYS)})"
@@ -441,7 +450,7 @@ def run(args):
     l_aux_max = args.lauxmax
     sph = args.sph
     normalization = normalization_map[args.normalize]
-    out_dir = Path(args.out_dir if not args.write else ".")
+    out_dir = Path(args.out_dir if not args.write else ".").absolute()
     keys = args.keys
 
     cse_kwargs = None
@@ -452,10 +461,6 @@ def run(args):
 
     if keys is None:
         keys = list()
-    try:
-        os.mkdir(out_dir)
-    except FileExistsError:
-        pass
 
     header = make_header(args)
 
@@ -490,14 +495,24 @@ def run(args):
         normalization=normalization,
         cse_kwargs=cse_kwargs,
     )
-    py_renderer = PythonRenderer()
-    numba_renderer = NumbaRenderer()
-    f_renderer = FortranRenderer()
-
-    renderers = [py_renderer, numba_renderer, f_renderer]
+    renderers = [
+        PythonRenderer(),
+        NumbaRenderer(),
+        # FortranRenderer(),
+    ]
 
     def render_write(funcs):
-        fns = [renderer.render_write(funcs, out_dir) for renderer in renderers]
+        nonlocal out_dir
+
+        fns = list()
+        # Force a trailing slash, as pathlib strips it out
+        out_dir = f"{out_dir}{os.sep}"
+        for renderer in renderers:
+            lang = renderer.language.lower()
+            rend_out_dir = Path(str(out_dir) + f"_{lang}")
+            if not rend_out_dir.exists():
+                rend_out_dir.mkdir()
+            fns.append(renderer.render_write(funcs, rend_out_dir))
         return fns
 
     #################
@@ -552,6 +567,7 @@ def run(args):
             (ax, bx),
             "ovlp3d",
             (A_map, B_map),
+            L_iter=ll_iter(l_max),
         )
         ovlp_funcs = Functions(
             name="ovlp3d",
@@ -564,6 +580,7 @@ def run(args):
             doc_func=doc_func,
             header=header,
             spherical=sph,
+            hermitian=[0, 1],
         )
         render_write(ovlp_funcs)
 
@@ -603,6 +620,7 @@ def run(args):
             (ax, bx),
             "dipole moment",
             (A_map, B_map, R_map),
+            L_iter=ll_iter(l_max),
         )
 
         dipole_funcs = Functions(
@@ -617,6 +635,7 @@ def run(args):
             ncomponents=3,
             header=header,
             spherical=sph,
+            hermitian=[0, 1],
         )
         render_write(dipole_funcs)
 
@@ -651,6 +670,7 @@ def run(args):
             (ax, bx),
             "diag quadrupole moment",
             (A_map, B_map, R_map),
+            L_iter=ll_iter(l_max),
         )
 
         diag_quadrupole_funcs = Functions(
@@ -665,6 +685,7 @@ def run(args):
             ncomponents=3,
             header=header,
             spherical=sph,
+            hermitian=[0, 1],
         )
         render_write(diag_quadrupole_funcs)
 
@@ -707,6 +728,7 @@ def run(args):
             (ax, bx),
             "quadrupole moment",
             (A_map, B_map, R_map),
+            L_iter=ll_iter(l_max),
         )
 
         quadrupole_funcs = Functions(
@@ -721,6 +743,7 @@ def run(args):
             ncomponents=6,
             header=header,
             spherical=sph,
+            hermitian=[0, 1],
         )
         render_write(quadrupole_funcs)
 
@@ -754,8 +777,9 @@ def run(args):
             ),
             (l_max, l_max),
             (ax, bx),
-            "spherical multipole",
+            "multipole3d_sph",
             (A_map, B_map, R_map),
+            L_iter=ll_iter(l_max),
         )
 
         sph_multipole_funcs = Functions(
@@ -772,6 +796,7 @@ def run(args):
             header=header,
             spherical=sph,
             primitive=True,
+            hermitian=[0, 1],
         )
         render_write(sph_multipole_funcs)
 
@@ -794,6 +819,7 @@ def run(args):
             (ax, bx),
             "kinetic",
             (A_map, B_map),
+            L_iter=ll_iter(l_max),
         )
 
         kinetic_funcs = Functions(
@@ -807,6 +833,7 @@ def run(args):
             doc_func=doc_func,
             header=header,
             spherical=sph,
+            hermitian=[0, 1],
         )
         render_write(kinetic_funcs)
 
@@ -829,6 +856,7 @@ def run(args):
             (ax, bx),
             "coulomb3d",
             (A_map, B_map, R_map),
+            L_iter=ll_iter(l_max),
         )
         coulomb_funcs = Functions(
             name="coulomb3d",
@@ -842,6 +870,7 @@ def run(args):
             doc_func=doc_func,
             header=header,
             spherical=sph,
+            hermitian=[0, 1],
         )
         render_write(coulomb_funcs)
 
@@ -872,6 +901,7 @@ def run(args):
             (ax, bx),
             "int2c2e",
             (A_map, B_map),
+            L_iter=ll_iter(l_aux_max),
         )
         _2c2e_funcs = Functions(
             name="int2c2e3d",  # Fortran does not like _2...
@@ -885,6 +915,7 @@ def run(args):
             doc_func=doc_func,
             header=header,
             spherical=sph,
+            hermitian=[0, 1],
         )
         render_write(_2c2e_funcs)
 
@@ -951,6 +982,7 @@ def run(args):
             (ax, bx, cx),
             "int3c2e3d_sph",
             (A_map, B_map, C_map),
+            L_iter=lllaux_iter(l_max, l_aux_max),
         )
         int3c2e_funcs = Functions(
             name="int3c2e3d_sph",  # Fortran does not like _2...
@@ -963,6 +995,7 @@ def run(args):
             doc_func=doc_func,
             header=header,
             spherical=sph,
+            hermitian=[0, 1],
         )
         render_write(int3c2e_funcs)
 
@@ -998,12 +1031,13 @@ def run(args):
                 center_A,
                 center_B,
                 center_C,
-                center_D,
-            ),
+                center_D,),
             (l_max, l_max, l_max, l_max),
             (ax, bx, cx, dx),
             "four_center_overlap",
             (A_map, B_map, C_map, D_map),
+            L_iter=???
+            hermitian=???,
         )
         write_render(
             ints_Ls,
@@ -1028,6 +1062,7 @@ def run(args):
         "3c2e_sph": _3center2electron_sph,  # Sph. 3-center-2-electron DF integrals
         # "4covlp": fourcenter_overlap,  # Four center overlap integral
     }
+    assert set(funcs.keys()) == set(KEYS)
 
     # Generate all possible integrals, when no 'keys' were supplied
     negate_keys = list()

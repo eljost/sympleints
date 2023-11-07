@@ -1,3 +1,4 @@
+import numpy as np
 from sympy.codegen.ast import Assignment
 from sympy.printing.numpy import NumPyPrinter
 
@@ -22,6 +23,7 @@ class PythonRenderer(Renderer):
 
     _tpls = {
         "func": "py_func.tpl",
+        "equi_func": "py_equi_func.tpl",
         "func_dict": "py_func_dict.tpl",
         "module": "py_module.tpl",
     }
@@ -73,6 +75,30 @@ class PythonRenderer(Renderer):
         )
         return rendered
 
+    def render_equi_function(
+        self,
+        functions,
+        name,
+        equi_name,
+        equi_inds,
+        from_axes,
+        to_axes,
+    ):
+        equi_args = ", ".join(functions.full_args_for_bf_inds(equi_inds))
+        args = ", ".join(functions.full_args)
+        tpl = self.get_template(key="equi_func")
+        nbfs = functions.nbfs
+        assert nbfs in (2, 3), "Implement other cases in template!"
+        rendered = tpl.render(
+            equi_name=equi_name,
+            equi_args=equi_args,
+            name=name,
+            args=args,
+            from_axes=from_axes,
+            to_axes=to_axes,
+        )
+        return rendered
+
     def render_func_dict(self, name, rendered_funcs):
         tpl = self.get_template(key="func_dict")
         rendered = tpl.render(name=name, rendered_funcs=rendered_funcs)
@@ -97,7 +123,7 @@ class PythonRenderer(Renderer):
                 rendered = black.format_str(
                     rendered, mode=black.FileMode(line_length=90)
                 )
-                print("\t ... formatted Python code with black")
+                print(f"\t ... formatted {self.language} code with black")
             except black.parsing.InvalidInput:
                 print("Error while parsing with black. Dumping nontheless.")
         except ModuleNotFoundError:

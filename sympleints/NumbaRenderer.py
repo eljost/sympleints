@@ -49,6 +49,7 @@ class NumbaRenderer(PythonRenderer):
 
     _tpls = {
         "func": "numba_func.tpl",
+        "equi_func": "numba_equi_func.tpl",
         "func_dict": "py_func_dict.tpl",
         "driver": "numba_driver.tpl",
         "module": "numba_module.tpl",

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+import itertools as it
 from typing import Callable, List, Optional
 
 from pathos.pools import ProcessPool
@@ -33,6 +34,7 @@ class Functions:
     spherical: bool = False
     primitive: bool = False
     parallel: Optional[bool] = True
+    hermitian: Optional[list[int]] = None
 
     def __post_init__(self):
         assert self.l_max >= 0
@@ -57,23 +59,33 @@ class Functions:
         if self.full_name is None:
             self.full_name = self.name
 
+        if self.hermitian is None:
+            self.hermitian = []
+
     @property
     def Ls(self):
         return ["La", "Lb", "Lc", "Ld"][: self.nbfs]
 
+    def bf_args(self, i):
+        """Basis function arguments: exponent, contr. coefficient and center."""
+        return [str(lst[i]) for lst in (self.exponents, self.coeffs, self.centers)]
+
+    def prim_args_for_bf_inds(self, bf_inds):
+        return list(it.chain(*[self.bf_args(i) for i in bf_inds]))
+
     @property
     def prim_args(self):
-        args = list()
-        for exponent, coeff, center in zip(self.exponents, self.coeffs, self.centers):
-            args.extend([str(exponent), str(coeff), str(center)])
+        return self.prim_args_for_bf_inds(range(self.nbfs))
+
+    def full_args_for_bf_inds(self, bf_inds):
+        args = self.prim_args_for_bf_inds(bf_inds)
+        if self.with_ref_center:
+            args += [str(self.ref_center)]
         return args
 
     @property
     def full_args(self):
-        args = self.prim_args
-        if self.with_ref_center:
-            args += [str(self.ref_center)]
-        return args
+        return self.full_args_for_bf_inds(range(self.nbfs))
 
     @property
     def prim_container_args(self):
@@ -81,6 +93,10 @@ class Functions:
         for exponent, coeff, center in zip(self.exponents, self.coeffs, self.centers):
             container_args.extend([f"{exponent}s", f"{coeff}s", f"{center}"])
         return container_args
+
+    @property
+    def prim_container_args(self):
+        return [f"{arg}s" for arg in self.prim_args]
 
     @property
     def full_container_args(self):

@@ -9,6 +9,7 @@
 {% endif %}
 
 import numpy
+
 {% if boys %}
 from pysisyphus.wavefunction.ints.boys import boys
 {% endif %}

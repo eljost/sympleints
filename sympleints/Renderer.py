@@ -55,11 +55,32 @@ class Renderer(abc.ABC):
         name,
         doc_str="",
     ):
-        pass
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def render_equi_function(
+        self,
+        functions,
+        name,
+        act_name,
+        equi_inds,
+        from_axes,
+        to_axes,
+    ):
+        raise NotImplementedError
 
     def render_functions(self, functions: Functions):
         args = functions.full_args
         ncomponents = functions.ncomponents
+        if len(hermi_inds := functions.hermitian) >= 2:
+            hermi_inds = functions.hermitian
+            assert len(hermi_inds) == 2
+            org_inds = hermi_inds
+            equi_inds = org_inds.copy()
+            hi, hj = hermi_inds
+            equi_inds[hi], equi_inds[hj] = equi_inds[hj], equi_inds[hi]
+        else:
+            equi_inds = []
 
         rendered_funcs = list()
         for L_tots, (repls, reduced) in functions.ls_exprs:
@@ -90,13 +111,51 @@ class Renderer(abc.ABC):
             dur = time.time() - start
             print(f"finished in {dur: >8.2f} s")
             rendered_funcs.append(RenderedFunction(name=name, Ls=L_tots, text=func))
+
+            # Request generation of equivalent integrals here
+            if len(equi_inds) > 0 and (L_tots[equi_inds[1]] > L_tots[equi_inds[0]]):
+                assert len(equi_inds) == 2
+                L_tots_equi = list(L_tots)
+                i, j = equi_inds
+                L_tots_equi[i], L_tots_equi[j] = L_tots_equi[j], L_tots_equi[i]
+                L_tots_equi = tuple(L_tots_equi)
+                name_equi = func_name_from_Ls(functions.name, L_tots_equi)
+
+                from_axes = tuple(equi_inds)
+                to_axes = tuple(org_inds)
+
+                nbfs = functions.nbfs
+                # Axes/indices are missing
+                if len(from_axes) != nbfs:
+                    to_axes = tuple(range(nbfs))
+                    from_axes = list(range(nbfs))
+                    from_axes[hi], from_axes[hj] = from_axes[hj], from_axes[hi]
+                    from_axes = tuple(from_axes)
+
+                more_components = functions.ncomponents > 1
+                print(
+                    f"{more_components=}, {functions.ncomponents=}, {self._drop_dim=}"
+                )
+                add_axis = more_components or (not self._drop_dim and nbfs == 2)
+                print(f"{add_axis=}")  # , {inds_missing=}")
+                if add_axis:
+                    from_axes = tuple([0] + [fa + 1 for fa in from_axes])
+                    to_axes = tuple([0] + [ta + 1 for ta in to_axes])
+                func_equi = self.render_equi_function(
+                    functions, name, name_equi, equi_inds, from_axes, to_axes
+                )
+                rendered_funcs.append(
+                    RenderedFunction(name=name_equi, Ls=L_tots_equi, text=func_equi)
+                )
+
         return rendered_funcs
 
     @abc.abstractmethod
     def render_module(self, functions, rendered_funcs, **tpl_kwargs):
-        pass
+        raise NotImplementedError
 
     def render(self, functions: Functions):
+        """Main driver to render Functions object to actual code."""
         rendered_funcs = self.render_functions(functions)
         module = self.render_module(
             functions,
@@ -112,5 +171,7 @@ class Renderer(abc.ABC):
 
     def render_write(self, functions: Functions, out_dir: Path):
         module = self.render(functions)
-        fn = self.write(out_dir, functions.name + self._suffix + self.ext, module)
+        # out_name = functions.name + self._suffix + self.ext
+        out_name = functions.name + self.ext
+        fn = self.write(out_dir, out_name, module)
         return fn
