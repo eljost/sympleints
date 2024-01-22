@@ -64,6 +64,7 @@ class Renderer(abc.ABC):
         name,
         act_name,
         equi_inds,
+        L_tots,
         from_axes,
         to_axes,
     ):
@@ -133,16 +134,21 @@ class Renderer(abc.ABC):
                     from_axes = tuple(from_axes)
 
                 more_components = functions.ncomponents > 1
-                print(
-                    f"{more_components=}, {functions.ncomponents=}, {self._drop_dim=}"
-                )
                 add_axis = more_components or (not self._drop_dim and nbfs == 2)
-                print(f"{add_axis=}")  # , {inds_missing=}")
                 if add_axis:
                     from_axes = tuple([0] + [fa + 1 for fa in from_axes])
                     to_axes = tuple([0] + [ta + 1 for ta in to_axes])
+
+                reshape = shape if functions.ncomponents > 1 else shape[1:]
+
                 func_equi = self.render_equi_function(
-                    functions, name, name_equi, equi_inds, from_axes, to_axes
+                    functions,
+                    name,
+                    name_equi,
+                    equi_inds,
+                    reshape,
+                    from_axes,
+                    to_axes,
                 )
                 rendered_funcs.append(
                     RenderedFunction(name=name_equi, Ls=L_tots_equi, text=func_equi)

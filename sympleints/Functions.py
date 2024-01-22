@@ -26,7 +26,7 @@ class Functions:
     header: str = ""
     doc_func: Optional[Callable] = None
     comment: str = ""
-    boys: bool = False
+    boys_func: Optional[str] = None
     ncomponents: int = 0
     with_ref_center: bool = True
     full_name: Optional["str"] = None
@@ -141,7 +141,8 @@ class Functions:
 
     @property
     def nbfs(self):
-        return len(self.coeffs)
+        # Return number of total angular momenta
+        return len(self.ls_exprs[0][0])
 
     @property
     def ls_name_map(self):
@@ -170,8 +171,3 @@ class Functions:
     @property
     def cartesian(self):
         return not self.spherical
-
-    # def numba_func_type(self):
-    # pass
-
-    # def numba_driver_type(self):

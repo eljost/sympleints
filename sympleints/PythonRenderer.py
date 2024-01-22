@@ -81,6 +81,7 @@ class PythonRenderer(Renderer):
         name,
         equi_name,
         equi_inds,
+        reshape,
         from_axes,
         to_axes,
     ):
@@ -96,6 +97,7 @@ class PythonRenderer(Renderer):
             args=args,
             from_axes=from_axes,
             to_axes=to_axes,
+            reshape=reshape,
         )
         return rendered
 
@@ -110,7 +112,7 @@ class PythonRenderer(Renderer):
         _tpl_kwargs = {
             "header": functions.header,
             "comment": functions.comment,
-            "boys": functions.boys,
+            "boys": functions.boys_func,
             "funcs": rendered_funcs,
             "func_dict": func_dict,
         }

@@ -1,6 +1,7 @@
-def {{ equi_name }}({{ args }}):
+def {{ equi_name }}({{ args }}, result):
     """See docstring of {{ name }}."""
 
+    # Calculate values w/ swapped arguments
+    {{ name }}({{ equi_args }}, result)
     # Swap two axes
-    result = numpy.moveaxis({{ name }}({{ equi_args }}), {{ from_axes }}, {{ to_axes }})
-    return result
+    result[:] = numpy.moveaxis(result.reshape({{ reshape|join(",") }}), {{ from_axes }}, {{ to_axes }}).flatten()

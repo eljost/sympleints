@@ -29,16 +29,15 @@
 
 import argparse
 from enum import Enum
-
 from datetime import datetime
 import functools
 import itertools as it
 from math import prod
-import os
 from pathlib import Path
 import sys
 import textwrap
 import time
+from typing import Optional
 
 from jinja2 import Template
 from sympy import __version__ as sympy_version
@@ -64,6 +63,7 @@ from sympleints import (
     shell_iter,
     get_timer_getter,
 )
+from sympleints.cart2sph import cart2sph_coeffs, cart2sph_nlms
 from sympleints.config import L_MAX, L_AUX_MAX, PREC
 
 # Integral definitions
@@ -82,7 +82,7 @@ from sympleints.defs.multipole import (
     gen_multipole_shell,
     gen_multipole_sph_shell,
 )
-from sympleints.defs.overlap import gen_overlap_shell
+from sympleints.defs.overlap import gen_overlap_shell, gen_prefactor_shell
 from sympleints.Functions import Functions
 from sympleints.helpers import L_MAP
 from sympleints.l_iters import ll_iter, lllaux_iter
@@ -91,17 +91,11 @@ from sympleints.l_iters import ll_iter, lllaux_iter
 from sympleints.FortranRenderer import FortranRenderer
 from sympleints.NumbaRenderer import NumbaRenderer
 from sympleints.PythonRenderer import PythonRenderer
-from sympleints.symbols import center_R, R, R_map
-
-try:
-    from pysisyphus.wavefunction.cart2sph import cart2sph_coeffs, cart2sph_nlms
-
-    can_sph = True
-except ModuleNotFoundError:
-    can_sph = False
+from sympleints.symbols import center_R, R, R_map, r, r_map, center_r, rP_map, rP2_map
 
 
 KEYS = (
+    "prefactor",
     "gto",
     "ovlp",
     "dpm",
@@ -122,10 +116,9 @@ normalization_map = {
 }
 
 
-if can_sph:
-    # Pregenerate coefficients
-    CART2SPH = cart2sph_coeffs(max(L_MAX, L_AUX_MAX) + 2, zero_small=True)
-    NLMS = cart2sph_nlms(max(L_MAX, L_AUX_MAX) + 2)
+# Pregenerate coefficients; now with mpmath enabled
+CART2SPH = cart2sph_coeffs(max(L_MAX, L_AUX_MAX) + 2, zero_small=True, use_mp=True)
+NLMS = cart2sph_nlms(max(L_MAX, L_AUX_MAX) + 2)
 
 
 def cart2spherical(L_tots, exprs):
@@ -377,7 +370,10 @@ def integral_gen_getter(
     return integral_gen
 
 
-def make_header(args):
+def make_header():
+    argv = sys.argv
+    args = parse_args(argv[1:])
+
     cmd = " ".join(sys.argv)
     tpl = Template(
         """
@@ -403,80 +399,40 @@ def make_header(args):
     return header
 
 
-def parse_args(args):
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--lmax",
-        default=L_MAX,
-        type=int,
-        help="Generate 1e-integrals up to this maximum angular momentum.",
-    )
-    parser.add_argument(
-        "--lauxmax",
-        default=L_AUX_MAX,
-        type=int,
-        help="Maximum angular moment for integrals using auxiliary functions.",
-    )
-    parser.add_argument(
-        "--write",
-        action="store_true",
-        help="Write out generated integrals to the current directory, potentially "
-        "overwriting the present modules.",
-    )
-    parser.add_argument(
-        "--out-dir",
-        default="ints",
-        help="Directory, where the generated integrals are written.",
-    )
-    keys_str = f"({', '.join(KEYS)})"
-    parser.add_argument(
-        "--keys",
-        nargs="+",
-        help=f"Generate only certain expressions. Possible keys are: {keys_str}. "
-        "If not given, all expressions are generated.",
-    )
-    parser.add_argument("--sph", action="store_true")
-    parser.add_argument(
-        "--opt-basic", action="store_true", help="Turn on basic optimizations in CSE."
-    )
-    parser.add_argument("--normalize", choices=normalization_map.keys(), default="none")
-
-    return parser.parse_args(args)
-
-
-def run(args):
-    l_max = args.lmax
-    l_aux_max = args.lauxmax
-    sph = args.sph
-    normalization = normalization_map[args.normalize]
-    out_dir = Path(args.out_dir if not args.write else ".").absolute()
-    keys = args.keys
-
-    cse_kwargs = None
-    if args.opt_basic:
-        cse_kwargs = {
-            "optimizations": "basic",
-        }
+def run(
+    l_max: int,
+    l_aux_max: int,
+    sph: bool = False,
+    normalization=Normalization.NONE,
+    out_dir=".",
+    prefix="ints",
+    keys=None,
+    cse_kwargs: Optional[dict] = None,
+    boys_func: Optional[str] = None,
+    cli=False,
+):
+    out_dir = Path(out_dir).absolute()
 
     if keys is None:
         keys = list()
 
-    header = make_header(args)
+    if cse_kwargs is None:
+        cse_kwargs = {}
 
-    INT_KIND = "Spherical" if sph else "Cartesian"
+    if cli:
+        header = make_header()
+    else:
+        header = """TODO: fix headers for API call!"""
+
+    int_kind = "Spherical" if sph else "Cartesian"
 
     # Cartesian basis function centers A, B, C and D.
     center_A = get_center("A")
     center_B = get_center("B")
     center_C = get_center("C")
     center_D = get_center("D")
-    # Multipole origin or nuclear position
-    # center_R = get_center("R")
-
     # Orbital exponents ax, bx, cx, dx.
     ax, bx, cx, dx = symbols("ax bx cx dx", real=True)
-
     # Contraction coefficients da, db, dc, dd.
     contr_coeffs = symbols("da db dc dd", real=True)
     da, db, dc, dd = contr_coeffs
@@ -497,23 +453,63 @@ def run(args):
     )
     renderers = [
         PythonRenderer(),
-        NumbaRenderer(),
+        # NumbaRenderer(),
         # FortranRenderer(),
     ]
+    results = dict()
 
     def render_write(funcs):
         nonlocal out_dir
 
         fns = list()
-        # Force a trailing slash, as pathlib strips it out
-        out_dir = f"{out_dir}{os.sep}"
         for renderer in renderers:
             lang = renderer.language.lower()
-            rend_out_dir = Path(str(out_dir) + f"_{lang}")
+            lang_results = results.setdefault(lang, dict())
+            rend_out_dir = out_dir / f"{prefix}_{lang}"
             if not rend_out_dir.exists():
                 rend_out_dir.mkdir()
-            fns.append(renderer.render_write(funcs, rend_out_dir))
+            fn = renderer.render_write(funcs, rend_out_dir)
+            lang_results[funcs.name] = fn
+            fns.append(fn)
         return fns
+
+    #############
+    # Prefactor #
+    ############
+
+    def prefactor():
+        def doc_func(L_tots):
+            La_tot, Lb_tot = L_tots
+            shell_a = L_MAP[La_tot]
+            shell_b = L_MAP[Lb_tot]
+            prefix = "Spherical" if sph else "Cartesian"
+            return f"{prefix} prefactors for 3D ({shell_a}{shell_b}) overlap at distance RP."
+
+        ls_exprs = integral_gen(
+            lambda La_tot, Lb_tot: gen_prefactor_shell(La_tot, Lb_tot),
+            (l_max, l_max),
+            (ax, bx),
+            "prefactor",
+            (rP_map, rP2_map),
+            L_iter=ll_iter(l_max),
+        )
+
+        prefactor_funcs = Functions(
+            name="prefactors",
+            l_max=l_max,
+            coeffs=[da, db],
+            exponents=[ax, bx],
+            centers=[A, B],
+            ls_exprs=ls_exprs,
+            doc_func=doc_func,
+            header=header,
+            spherical=sph,
+            primitive=True,
+            hermitian=[0, 1],
+            parallel=False,
+            with_ref_center=False,
+        )
+        render_write(prefactor_funcs)
 
     #################
     # Cartesian GTO #
@@ -524,7 +520,7 @@ def run(args):
             (La_tot,) = L_tot
             shell_a = L_MAP[La_tot]
             return (
-                f"3D {INT_KIND} {shell_a}-Gaussian shell.\n"
+                f"3D {int_kind} {shell_a}-Gaussian shell.\n"
                 "Exponent ax, contraction coeff. da, centered at A, evaluated at R."
             )
 
@@ -559,7 +555,7 @@ def run(args):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
-            return f"{INT_KIND} 3D ({shell_a}{shell_b}) overlap integral."
+            return f"{int_kind} 3D ({shell_a}{shell_b}) overlap integral."
 
         ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: gen_overlap_shell(La_tot, Lb_tot, ax, bx, A, B),
@@ -594,7 +590,7 @@ def run(args):
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return (
-                f"{INT_KIND} 3D ({shell_a}{shell_b}) dipole moment integrals.\n"
+                f"{int_kind} 3D ({shell_a}{shell_b}) dipole moment integrals.\n"
                 "The origin is at R."
             )
 
@@ -649,7 +645,7 @@ def run(args):
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return (
-                f"{INT_KIND} 3D ({shell_a}{shell_b}) quadrupole moment integrals\n"
+                f"{int_kind} 3D ({shell_a}{shell_b}) quadrupole moment integrals\n"
                 "for operators x², y² and z². The origin is at R."
             )
 
@@ -699,7 +695,7 @@ def run(args):
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return (
-                f"{INT_KIND} 3D ({shell_a}{shell_b}) quadrupole moment integrals.\n"
+                f"{int_kind} 3D ({shell_a}{shell_b}) quadrupole moment integrals.\n"
                 "The origin is at R."
             )
 
@@ -757,7 +753,7 @@ def run(args):
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return (
-                f"Primitive {INT_KIND} 3D ({shell_a}{shell_b}) spherical multipole integrals.\n"
+                f"Primitive {int_kind} 3D ({shell_a}{shell_b}) spherical multipole integrals.\n"
                 "In contrast to the other multipole integrals, the origin R is calculated\n"
                 "inside the function and is (possibly) unique for all primitive pairs."
             )
@@ -809,7 +805,7 @@ def run(args):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
-            return f"{INT_KIND} 3D ({shell_a}{shell_b}) kinetic energy integral."
+            return f"{int_kind} 3D ({shell_a}{shell_b}) kinetic energy integral."
 
         ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: gen_kinetic_shell(
@@ -846,7 +842,7 @@ def run(args):
             La_tot, Lb_tot = L_tots
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
-            return f"{INT_KIND} ({shell_a}{shell_b}) 1-electron Coulomb integral."
+            return f"{int_kind} ({shell_a}{shell_b}) 1-electron Coulomb integral."
 
         ls_exprs = integral_gen(
             lambda La_tot, Lb_tot: CoulombShell(
@@ -866,7 +862,7 @@ def run(args):
             centers=[A, B],
             ls_exprs=ls_exprs,
             ncomponents=1,
-            boys=True,
+            boys_func=boys_func,
             doc_func=doc_func,
             header=header,
             spherical=sph,
@@ -884,7 +880,7 @@ def run(args):
             shell_a = L_MAP[La_tot]
             shell_b = L_MAP[Lb_tot]
             return (
-                f"{INT_KIND} ({shell_a}|{shell_b}) "
+                f"{int_kind} ({shell_a}|{shell_b}) "
                 "two-center two-electron repulsion integral."
             )
 
@@ -911,7 +907,7 @@ def run(args):
             centers=[A, B],
             ls_exprs=ls_exprs,
             ncomponents=1,
-            boys=True,
+            boys_func=boys_func,
             doc_func=doc_func,
             header=header,
             spherical=sph,
@@ -962,10 +958,10 @@ def run(args):
             shell_b = L_MAP[Lb_tot]
             shell_c = L_MAP[Lc_tot]
             doc_str = (
-                f"{INT_KIND} ({shell_a}{shell_b}|{shell_c}) three-center "
+                f"{int_kind} ({shell_a}{shell_b}|{shell_c}) three-center "
                 "two-electron repulsion integral."
             )
-            if INT_KIND == "Cartesian":
+            if int_kind == "Cartesian":
                 doc_str += (
                     "\nThese integrals MUST BE converted to spherical harmonics!\n"
                     "\nIntegral generation utilized Ahlrichs (truncated) vertical "
@@ -991,7 +987,7 @@ def run(args):
             exponents=[ax, bx, cx],
             centers=[A, B, C],
             ls_exprs=ls_exprs,
-            boys=True,
+            boys_func=boys_func,
             doc_func=doc_func,
             header=header,
             spherical=sph,
@@ -1049,6 +1045,7 @@ def run(args):
     """
 
     funcs = {
+        "prefactor": prefactor,
         "gto": gto,  # Cartesian Gaussian-type-orbital for density evaluation
         "ovlp": overlap,  # Overlap integrals
         "dpm": dipole,  # Linear moment (dipole) integrals
@@ -1062,7 +1059,9 @@ def run(args):
         "3c2e_sph": _3center2electron_sph,  # Sph. 3-center-2-electron DF integrals
         # "4covlp": fourcenter_overlap,  # Four center overlap integral
     }
-    assert set(funcs.keys()) == set(KEYS)
+    assert set(funcs.keys()) == set(
+        KEYS
+    ), "Did you just add a key to 'keys' but forgot to also add it to 'KEYS'?"
 
     # Generate all possible integrals, when no 'keys' were supplied
     negate_keys = list()
@@ -1081,12 +1080,91 @@ def run(args):
     duration_hms = str(duration).split(".")[0]  # Only keep hh:mm:ss
     print(f"sympleint run took {duration_hms} h.")
 
-    return 0
+    return results
+
+
+def parse_args(args):
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--lmax",
+        default=L_MAX,
+        type=int,
+        help="Generate 1e-integrals up to this maximum angular momentum.",
+    )
+    parser.add_argument(
+        "--lauxmax",
+        default=L_AUX_MAX,
+        type=int,
+        help="Maximum angular moment for integrals using auxiliary functions.",
+    )
+    """
+    parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Write out generated integrals to the current directory, potentially "
+        "overwriting the present modules.",
+    )
+    """
+    parser.add_argument(
+        "--out-dir",
+        default=".",
+        help="Directory, where the generated integrals are written.",
+    )
+    parser.add_argument(
+        "--prefix", default="ints", help="Prefix for the integral directories."
+    )
+    keys_str = f"({', '.join(KEYS)})"
+    parser.add_argument(
+        "--keys",
+        nargs="+",
+        help=f"Generate only certain expressions. Possible keys are: {keys_str}. "
+        "If not given, all expressions are generated.",
+    )
+    parser.add_argument("--sph", action="store_true")
+    parser.add_argument(
+        "--opt-basic", action="store_true", help="Turn on basic optimizations in CSE."
+    )
+    parser.add_argument(
+        "--boys-func",
+        default="pysisyphus.wavefunction.ints.boys",
+        help="Which Boys-function to use.",
+    )
+    parser.add_argument("--normalize", choices=normalization_map.keys(), default="none")
+
+    return parser.parse_args(args)
 
 
 def run_cli():
     args = parse_args(sys.argv[1:])
-    return run(args)
+
+    l_max = args.lmax
+    l_aux_max = args.lauxmax
+    sph = args.sph
+    normalization = normalization_map[args.normalize]
+    out_dir = args.out_dir
+    prefix = args.prefix
+    keys = args.keys
+    boys_func = args.boys_func
+
+    cse_kwargs = None
+    if args.opt_basic:
+        cse_kwargs = {
+            "optimizations": "basic",
+        }
+
+    return run(
+        l_max=l_max,
+        l_aux_max=l_aux_max,
+        sph=sph,
+        normalization=normalization,
+        out_dir=out_dir,
+        prefix=prefix,
+        keys=keys,
+        cse_kwargs=cse_kwargs,
+        boys_func=boys_func,
+        cli=True,
+    )
 
 
 if __name__ == "__main__":
