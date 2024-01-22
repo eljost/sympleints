@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 
-from sympleints.boys import boys_quad, get_boys_func
+from sympleints.testing.boys import boys_quad, get_boys_func
 
 
 def test_boys(atol=2e-10):

@@ -1127,7 +1127,8 @@ def parse_args(args):
     )
     parser.add_argument(
         "--boys-func",
-        default="pysisyphus.wavefunction.ints.boys",
+        # default="pysisyphus.wavefunction.ints.boys",
+        default="sympleints.testing.boys",
         help="Which Boys-function to use.",
     )
     parser.add_argument("--normalize", choices=normalization_map.keys(), default="none")

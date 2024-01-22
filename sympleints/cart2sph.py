@@ -17,8 +17,8 @@ import numpy as np
 from scipy.special import factorial as fact
 from scipy.special import binom
 
-from pysisyphus.wavefunction.helpers import canonical_order
-from pysisyphus.wavefunction.normalization import get_lmn_factors
+from sympleints.helpers import canonical_order
+from sympleints.testing.normalization import get_lmn_factors
 
 
 ZERO_THRESH = 1e-14

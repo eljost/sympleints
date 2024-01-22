@@ -10,7 +10,7 @@ from sympy.codegen.ast import Assignment
 from sympleints.graphs.AngMoms import AngMoms, CartAngMom, SphAngMom
 from sympleints.helpers import BFKind, shell_iter
 
-from pysisyphus.wavefunction.cart2sph import expand_sph_quantum_numbers
+from sympleints.cart2sph import expand_sph_quantum_numbers
 
 
 KEY_MAP = {
