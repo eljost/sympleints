@@ -89,13 +89,6 @@ class Functions:
 
     @property
     def prim_container_args(self):
-        container_args = list()
-        for exponent, coeff, center in zip(self.exponents, self.coeffs, self.centers):
-            container_args.extend([f"{exponent}s", f"{coeff}s", f"{center}"])
-        return container_args
-
-    @property
-    def prim_container_args(self):
         return [f"{arg}s" for arg in self.prim_args]
 
     @property

@@ -18,7 +18,7 @@ def gen_and_compare_to_pyscf(key, name, ncomponents, pyscf_name, spherical, L_ma
             keys=(key,),
             out_dir=out_dir,
             normalization=sympleints.main.Normalization.CGTO,
-            boys_func="sympleints.boys",
+            boys_func="sympleints.testing.boys",
         )
         # Get path to generated integrals
         int_fn = results["python"][name]

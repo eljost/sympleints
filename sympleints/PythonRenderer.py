@@ -1,4 +1,3 @@
-import numpy as np
 from sympy.codegen.ast import Assignment
 from sympy.printing.numpy import NumPyPrinter
 
