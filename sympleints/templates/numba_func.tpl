@@ -16,5 +16,5 @@ def {{ name }}({{ args }}, result):
 
     # {{ n_return_vals }} item(s)
     {% for inds, res_line in results_iter %}
-    result[{{ inds|join(", ")}}] += {{ res_line }}
+    result[{{ loop.index0 }}] {% if not primitive %}+{% endif %}= {{ res_line }}
     {% endfor %}

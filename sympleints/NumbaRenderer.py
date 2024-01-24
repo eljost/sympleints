@@ -6,14 +6,8 @@ _type_map = {
     ArgKind.EXPO: "f8",
     ArgKind.CONTR: "f8",
     ArgKind.CENTER: "f8[:]",
-    ArgKind.RESULT1: "f8[:]",
-    ArgKind.RESULT2: "f8[:, :]",
-    ArgKind.RESULT3: "f8[:, :, :]",
-    ArgKind.RESULT4: "f8[:, :, :, :]",
+    ArgKind.RESULT1: "f8[::1]",
 }
-
-# TODO: investigate contiguity by using the ::1
-# See: https://numba.pydata.org/numba-doc/latest/reference/types.html
 
 _container_type_map = {
     ArgKind.EXPO: "f8[:]",
@@ -26,7 +20,7 @@ def func_type_from_functions(functions):
     """Numba function signature."""
     args = [_type_map[arg_kind] for arg_kind in functions.full_arg_kinds]
     # Add result type
-    args += [_type_map[functions.result_kind]]
+    args += [_type_map[ArgKind.RESULT1]]
     args_str = ", ".join(args)
     signature = f"numba.types.void({args_str})"
     return signature
@@ -38,7 +32,7 @@ def driver_func_type_from_functions(functions):
     # Prepend angular momenta that will be passed to the driver
     args = ["i8" for _ in range(functions.nbfs)] + args
     args_str = ", ".join(args)
-    result = _type_map[functions.result_kind]
+    result = _type_map[ArgKind.RESULT1]
     signature = f"{result}({args_str}, func_dict_type)"
     return signature
 
@@ -52,6 +46,7 @@ class NumbaRenderer(PythonRenderer):
         "equi_func": "numba_equi_func.tpl",
         "func_dict": "py_func_dict.tpl",
         "driver": "numba_driver.tpl",
+        # "driver": "numba_if_driver.tpl",
         "module": "numba_module.tpl",
     }
     _suffix = "_numba"
@@ -87,9 +82,26 @@ class NumbaRenderer(PythonRenderer):
         )
         return rendered
 
+    def render_if_driver_func(self, functions, rendered_funcs):
+        tpl = self.get_template(key="driver")
+        conds_funcs = list()
+        Ls = ("La", "Lb", "Lc", "Ld")[: functions.nbfs]
+        for rfunc in rendered_funcs:
+            Lconds = [f"{L} == {Lval}" for L, Lval in zip(Ls, rfunc.Ls)]
+            conds_funcs.append((Lconds, rfunc.name))
+
+        rendered = tpl.render(
+            name=functions.name,
+            Ls=Ls,
+            args=functions.full_args + ["result"],
+            conds_funcs=conds_funcs,
+        )
+        return rendered
+
     def render_module(self, functions, rendered_funcs, **tpl_kwargs):
         func_type = func_type_from_functions(functions)
         driver_func = self.render_driver_func(functions, rendered_funcs)
+        # driver_func = self.render_if_driver_func(functions, rendered_funcs)
         tpl_kwargs.update(
             {
                 "func_type": func_type,

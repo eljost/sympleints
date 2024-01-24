@@ -70,7 +70,6 @@ from sympleints.config import L_MAX, L_AUX_MAX, PREC
 from sympleints.defs.coulomb import (
     CoulombShell,
     TwoCenterTwoElectronShell,
-    # ThreeCenterTwoElectronShell,
     ThreeCenterTwoElectronSphShell,
 )
 
@@ -105,7 +104,6 @@ KEYS = (
     "kin",
     "coul",
     "2c2e",
-    # "3c2e",  # not really practical
     "3c2e_sph",
 )
 Normalization = Enum("Normalization", ["PGTO", "CGTO", "NONE"])
@@ -453,7 +451,7 @@ def run(
     )
     renderers = [
         PythonRenderer(),
-        # NumbaRenderer(),
+        NumbaRenderer(),
         # FortranRenderer(),
     ]
     results = dict()
@@ -919,38 +917,6 @@ def run(
     # Three-center two-electron repulsion integrals #
     #################################################
 
-    """
-    # NOT YET UPDATED!
-    def _3center2electron():
-        def _3center2el_doc_func(L_tots):
-            La_tot, Lb_tot, Lc_tot = L_tots
-            shell_a = L_MAP[La_tot]
-            shell_b = L_MAP[Lb_tot]
-            shell_c = L_MAP[Lc_tot]
-            return (
-                f"{INT_KIND} ({shell_a}{shell_b}|{shell_c}) "
-                "three-center two-electron repulsion integral."
-            )
-
-        _3center2el_ints_Ls = integral_gen(
-            lambda La_tot, Lb_tot, Lc_tot: ThreeCenterTwoElectronShell(
-                La_tot, Lb_tot, Lc_tot, ax, bx, cx, center_A, center_B, center_C
-            ),
-            (l_max, l_max, l_aux_max),
-            (ax, bx, cx),
-            "_3center2el3d",
-            (A_map, B_map, C_map),
-        )
-        write_render(
-            _3center2el_ints_Ls,
-            (ax, da, A, bx, db, B, cx, dc, C),
-            "_3center2el3d",
-            _3center2el_doc_func,
-            c=False,
-            py_kwargs={"add_imports": boys_import},
-        )
-    """
-
     def _3center2electron_sph():
         def doc_func(L_tots):
             La_tot, Lb_tot, Lc_tot = L_tots
@@ -1045,19 +1011,21 @@ def run(
     """
 
     funcs = {
+        # Functions
         "prefactor": prefactor,
         "gto": gto,  # Cartesian Gaussian-type-orbital for density evaluation
+        # Integrals
         "ovlp": overlap,  # Overlap integrals
         "dpm": dipole,  # Linear moment (dipole) integrals
         "dqpm": diag_quadrupole,  # Diagonal part of the quadrupole tensor
         "qpm": quadrupole,  # Quadratic moment (quadrupole) integrals
         "multi_sph": multipole_sph,  # Integrals for distributed multipole analysis
         "kin": kinetic,  # Kinetic energy integrals
+        # "4covlp": fourcenter_overlap,  # Four center overlap integral
+        # Utilizing Boys-function below
         "coul": coulomb,  # 1-electron Coulomb integrals
         "2c2e": _2center2electron,  # 2-center-2-electron density fitting integrals
-        # "3c2e": _3center2electron,  # 3-center-2-electron integrals for DF
         "3c2e_sph": _3center2electron_sph,  # Sph. 3-center-2-electron DF integrals
-        # "4covlp": fourcenter_overlap,  # Four center overlap integral
     }
     assert set(funcs.keys()) == set(
         KEYS
@@ -1127,7 +1095,6 @@ def parse_args(args):
     )
     parser.add_argument(
         "--boys-func",
-        # default="pysisyphus.wavefunction.ints.boys",
         default="sympleints.testing.boys",
         help="Which Boys-function to use.",
     )

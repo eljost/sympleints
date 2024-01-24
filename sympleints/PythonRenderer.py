@@ -38,6 +38,7 @@ class PythonRenderer(Renderer):
         shape_iter,
         args,
         name,
+        L_tots,
         doc_str="",
     ):
         # This allows using the 'boys' function without producing an error
@@ -71,6 +72,8 @@ class PythonRenderer(Renderer):
             n_return_vals=len(reduced),
             doc_str=doc_str,
             shape=shape,
+            functions=functions,
+            primitive=functions.primitive,
         )
         return rendered
 
@@ -89,6 +92,9 @@ class PythonRenderer(Renderer):
         tpl = self.get_template(key="equi_func")
         nbfs = functions.nbfs
         assert nbfs in (2, 3), "Implement other cases in template!"
+        if functions.ncomponents == 1:
+            from_axes = tuple([i - 1 for i in from_axes[1:]])
+            to_axes = tuple([i - 1 for i in to_axes[1:]])
         rendered = tpl.render(
             equi_name=equi_name,
             equi_args=equi_args,
@@ -97,6 +103,8 @@ class PythonRenderer(Renderer):
             from_axes=from_axes,
             to_axes=to_axes,
             reshape=reshape,
+            functions=functions,
+            primitive=functions.primitive,
         )
         return rendered
 
@@ -114,6 +122,8 @@ class PythonRenderer(Renderer):
             "boys": functions.boys_func,
             "funcs": rendered_funcs,
             "func_dict": func_dict,
+            "name": functions.name,
+            "args": functions.full_args,
         }
         _tpl_kwargs.update(tpl_kwargs)
         rendered = tpl.render(**_tpl_kwargs)

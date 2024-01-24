@@ -53,6 +53,7 @@ class Renderer(abc.ABC):
         shape_iter,
         args,
         name,
+        L_tots,
         doc_str="",
     ):
         raise NotImplementedError
@@ -62,9 +63,9 @@ class Renderer(abc.ABC):
         self,
         functions,
         name,
-        act_name,
+        equi_name,
         equi_inds,
-        L_tots,
+        reshape,
         from_axes,
         to_axes,
     ):
@@ -107,6 +108,7 @@ class Renderer(abc.ABC):
                 shape_iter,
                 args=args,
                 name=name,
+                L_tots=L_tots,
                 doc_str=doc_str,
             )
             dur = time.time() - start

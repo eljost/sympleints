@@ -1,8 +1,5 @@
 int_tuple_type = numba.types.UniTuple(i8, {{ nbfs }})
 func_dict_type = numba.types.DictType(int_tuple_type, func_type)
-driver_func_type = numba.types.FunctionType(
-    {{ driver_func_type }}
-)
 
 # Sadly, this function can't be cached.
 @numba.jit(func_dict_type(), nopython=True, cache=True)
@@ -26,6 +23,10 @@ def get_func_dict():
 
 
 {#
+driver_func_type = numba.types.FunctionType(
+    {{ driver_func_type }}
+)
+
 @numba.jit(
     driver_func_type.signature,
     nopython=True,
