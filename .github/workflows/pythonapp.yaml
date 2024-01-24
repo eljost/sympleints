@@ -39,6 +39,7 @@ jobs:
           --cov=sympleints
           --cov-report=xml:coverage-${{ matrix.python-version }}.xml
           --cov-report=html:coverage-${{ matrix.python-version }}.html
+          --durations=0
       - name: Keep pytest results
         uses: actions/upload-artifact@v3
         with:
