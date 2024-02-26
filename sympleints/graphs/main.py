@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import argparse
-import itertools as it
-import shutil
+
+from pathlib import Path
 import sys
 import time
 
@@ -22,6 +22,9 @@ def parse_args(args):
     parser.add_argument("--lmax", type=int, default=L_MAX)
     parser.add_argument("--lauxmax", type=int, default=L_AUX_MAX)
     parser.add_argument("--do-plot", action="store_true")
+    parser.add_argument(
+        "--out-dir", default=".", help="Directory where the integral are written."
+    )
     return parser.parse_args(args)
 
 
@@ -31,6 +34,10 @@ def run():
     lmax = args.lmax
     lauxmax = args.lauxmax
     do_plot = args.do_plot
+    out_dir = Path(args.out_dir).absolute()
+
+    if not out_dir.exists():
+        out_dir.mkdir()
 
     iter_funcs = {
         # Nuclear attraction integrals
@@ -69,9 +76,8 @@ def run():
     render_dur = time.time() - start
 
     mod_fn = f"{integral.name}.f90"
-    with open(mod_fn, "w") as handle:
+    with open(out_dir / mod_fn, "w") as handle:
         handle.write(rendered)
-    shutil.copy(mod_fn, f"{integral.name}_{last_key}.f90")
 
     dur = gen_dur + render_dur
     print(f"Generation took {gen_dur:.1f} s")
