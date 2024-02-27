@@ -16,6 +16,6 @@ real({{ kind }}) :: {{ as_.lhs }}
 {% endfor %}
 
 {% for inds, res_line in results_iter %}
-{{ res_name }}({{ inds|join(", ") }})  = {{ res_line }}
+{{ res_name }}({{ loop.index }}) = {{ res_line }}
 {% endfor %}
 end subroutine {{ name }}

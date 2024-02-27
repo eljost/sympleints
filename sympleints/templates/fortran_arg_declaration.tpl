@@ -17,4 +17,4 @@ real({{ kind }}), intent(in), dimension(3) :: {{ centers|join(", ") }}
 real({{ kind }}), intent(in), dimension(3) :: {{ ref_center }}
 {% endif %}
 ! Return value
-real({{ kind }}), intent(in out) :: {{ res_name }}({{ res_dim }})
+real({{ kind }}), intent(in out) :: {{ res_name }}(:)
