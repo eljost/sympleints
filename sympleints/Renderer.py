@@ -74,6 +74,7 @@ class Renderer(abc.ABC):
     def render_functions(self, functions: Functions):
         args = functions.full_args
         ncomponents = functions.ncomponents
+        assert ncomponents > 0
         if len(hermi_inds := functions.hermitian) >= 2:
             hermi_inds = functions.hermitian
             assert len(hermi_inds) == 2
@@ -124,34 +125,12 @@ class Renderer(abc.ABC):
                 L_tots_equi = tuple(L_tots_equi)
                 name_equi = func_name_from_Ls(functions.name, L_tots_equi)
 
-                from_axes = tuple(equi_inds)
-                to_axes = tuple(org_inds)
-
-                nbfs = functions.nbfs
-                # Axes/indices are missing
-                if len(from_axes) != nbfs:
-                    to_axes = tuple(range(nbfs))
-                    from_axes = list(range(nbfs))
-                    from_axes[hi], from_axes[hj] = from_axes[hj], from_axes[hi]
-                    from_axes = tuple(from_axes)
-
-                more_components = functions.ncomponents > 1
-                add_axis = more_components or (not self._drop_dim and nbfs == 2)
-                if add_axis:
-                    from_axes = tuple([0] + [fa + 1 for fa in from_axes])
-                    to_axes = tuple([0] + [ta + 1 for ta in to_axes])
-
-                # Drop first dimension when only 1 or 0 components are present
-                reshape = shape if more_components else shape[1:]
-
                 func_equi = self.render_equi_function(
                     functions,
                     name,
                     name_equi,
                     equi_inds,
-                    reshape,
-                    from_axes,
-                    to_axes,
+                    shape,
                 )
                 rendered_funcs.append(
                     RenderedFunction(name=name_equi, Ls=L_tots_equi, text=func_equi)

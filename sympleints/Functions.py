@@ -27,7 +27,7 @@ class Functions:
     doc_func: Optional[Callable] = None
     comment: str = ""
     boys_func: Optional[str] = None
-    ncomponents: int = 0
+    ncomponents: int = 1
     with_ref_center: bool = True
     full_name: Optional["str"] = None
     l_aux_max: Optional[int] = None
@@ -39,7 +39,7 @@ class Functions:
     def __post_init__(self):
         assert self.l_max >= 0
         assert len(self.coeffs) == len(self.exponents) == len(self.centers)
-        assert self.ncomponents >= 0
+        assert self.ncomponents >= 1
 
         L_iter, inner = self.ls_exprs
         self.L_iter = L_iter

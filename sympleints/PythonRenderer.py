@@ -27,7 +27,11 @@ class PythonRenderer(Renderer):
         "module": "py_module.tpl",
     }
     _primitive = False
-    _drop_dim = True
+    _drop_dim = True  # TODO: remove this?!
+    resort_func_dict = {
+        2: ("resort_ba_ab", (2, 1)),
+        3: ("resort_bac_abc", (2, 1)),
+    }
 
     def render_function(
         self,
@@ -84,27 +88,23 @@ class PythonRenderer(Renderer):
         equi_name,
         equi_inds,
         shape,
-        from_axes,
-        to_axes,
     ):
+        resort_func, new_order = self.resort_func_dict[functions.nbfs]
+        sizes = shape
+        sizes = [shape[i] for i in new_order]
         equi_args = ", ".join(functions.full_args_for_bf_inds(equi_inds))
         args = ", ".join(functions.full_args)
+        ncomponents = functions.ncomponents
+
         tpl = self.get_template(key="equi_func")
-        nbfs = functions.nbfs
-        assert nbfs in (2, 3), "Implement other cases in template!"
-        if functions.ncomponents == 1:
-            from_axes = tuple([i - 1 for i in from_axes[1:]])
-            to_axes = tuple([i - 1 for i in to_axes[1:]])
         rendered = tpl.render(
             equi_name=equi_name,
             equi_args=equi_args,
             name=name,
             args=args,
-            from_axes=from_axes,
-            to_axes=to_axes,
-            shape=shape,
-            functions=functions,
-            primitive=functions.primitive,
+            sizes=sizes,
+            resort_func=resort_func,
+            ncomponents=ncomponents,
         )
         return rendered
 
@@ -115,6 +115,7 @@ class PythonRenderer(Renderer):
 
     def render_module(self, functions, rendered_funcs, **tpl_kwargs):
         func_dict = self.render_func_dict(functions.name, rendered_funcs)
+        resort_func, _ = self.resort_func_dict[functions.nbfs]
         tpl = self.get_template(key="module")
         _tpl_kwargs = {
             "header": functions.header,
@@ -124,6 +125,7 @@ class PythonRenderer(Renderer):
             "func_dict": func_dict,
             "name": functions.name,
             "args": functions.full_args,
+            "resort_func": resort_func,
         }
         _tpl_kwargs.update(tpl_kwargs)
         rendered = tpl.render(**_tpl_kwargs)

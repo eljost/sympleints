@@ -3,5 +3,4 @@ def {{ equi_name }}({{ args }}, result):
 
     # Calculate values w/ swapped arguments
     {{ name }}({{ equi_args }}, result)
-    # Swap two axes
-    result[:] = numpy.moveaxis(result.reshape({{ shape|join(",") }}), {{ from_axes }}, {{ to_axes }}).flatten()
+    {{ resort_func }}(result, {{ sizes|join(", ")}}, {{ ncomponents }})
