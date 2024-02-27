@@ -11,5 +11,5 @@ def {{ equi_name }}({{ args }}, result):
     # Call equivalent function and write to result
     tmp = numpy.zeros_like(result)
     {{ name }}({{ equi_args }}, tmp)
-    result[:]  {% if not primitive %}+{% endif %}= numpy.transpose(tmp.reshape({{ reshape|join(", ") }}), axes={{ from_axes }}).flatten()
+    result[:]  {% if not primitive %}+{% endif %}= numpy.transpose(tmp.reshape({{ shape|join(", ") }}), axes={{ from_axes }}).flatten()
 
