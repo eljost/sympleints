@@ -7,6 +7,7 @@ import tempfile
 import sympleints.testing.intor as intor
 import sympleints.testing.pyscf_interface as pi
 import sympleints.main
+from sympleints.PythonRenderer import PythonRenderer
 
 
 def gen_and_compare_to_pyscf(key, name, ncomponents, pyscf_name, spherical, L_max=2):
@@ -19,6 +20,7 @@ def gen_and_compare_to_pyscf(key, name, ncomponents, pyscf_name, spherical, L_ma
             out_dir=out_dir,
             normalization=sympleints.main.Normalization.CGTO,
             boys_func="sympleints.testing.boys",
+            renderers=[PythonRenderer()],
         )
         # Get path to generated integrals
         int_fn = results["python"][name]

@@ -8,6 +8,7 @@ import time
 from typing import List, Tuple
 
 from colorama import Fore, Style
+import numpy as np
 from sympy import IndexedBase, Matrix, Symbol
 
 from sympleints.config import CACHE_DIR
@@ -158,3 +159,43 @@ def get_path_in_cache_dir(fn, cwd=None):
     if not cache_dir.exists():
         cache_dir.mkdir()
     return cache_dir / fn
+
+
+def get_reorder_inds(sizes, ncomponents, herm_axes):
+    assert ncomponents >= 0
+    assert len(herm_axes) == 2
+
+    sizes = list(sizes)
+    herm_axes = herm_axes[::-1]
+
+    # Add aditional axis in front when multiple components are present,
+    # and shift already present axes one index to the right.
+    if ncomponents > 0:
+        herm_axes = [0] + [ha + 1 for ha in herm_axes]
+
+    # Add remaining axes
+    # TODO: fix this for Ls > 2!
+    assert len(herm_axes) in (2, 3)
+    """
+    # Determine missing, not specified axis and add them in the correct
+    # order.
+    if nherm_axes < (len(Ls) + min(0, ncomponents)):
+        dn = len(Ls) - nherm_axes
+        herm_axes = list(range(dn)) + [ha + dn for ha in herm_axes]
+    """
+    if ncomponents > 0:
+        sizes = [ncomponents] + sizes
+
+    size = np.prod(sizes)
+    arr = np.arange(size)
+    try:
+        arrT = np.transpose(arr.reshape(*sizes), axes=herm_axes)
+    except ValueError:
+        breakpoint()
+    return arrT.flatten()
+
+
+def get_reorder_inds_for_Ls(Ls, ncomponents, herm_axes, sph=False):
+    size_func = sph_size if sph else cart_size
+    sizes = list(map(size_func, Ls))
+    return get_reorder_inds(sizes, ncomponents, herm_axes)

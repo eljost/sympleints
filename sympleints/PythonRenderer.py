@@ -83,7 +83,7 @@ class PythonRenderer(Renderer):
         name,
         equi_name,
         equi_inds,
-        reshape,
+        shape,
         from_axes,
         to_axes,
     ):
@@ -102,7 +102,7 @@ class PythonRenderer(Renderer):
             args=args,
             from_axes=from_axes,
             to_axes=to_axes,
-            reshape=reshape,
+            shape=shape,
             functions=functions,
             primitive=functions.primitive,
         )

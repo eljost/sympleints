@@ -141,7 +141,8 @@ class Renderer(abc.ABC):
                     from_axes = tuple([0] + [fa + 1 for fa in from_axes])
                     to_axes = tuple([0] + [ta + 1 for ta in to_axes])
 
-                reshape = shape if functions.ncomponents > 1 else shape[1:]
+                # Drop first dimension when only 1 or 0 components are present
+                reshape = shape if more_components else shape[1:]
 
                 func_equi = self.render_equi_function(
                     functions,

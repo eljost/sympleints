@@ -90,6 +90,7 @@ from sympleints.l_iters import ll_iter, lllaux_iter
 from sympleints.FortranRenderer import FortranRenderer
 from sympleints.NumbaRenderer import NumbaRenderer
 from sympleints.PythonRenderer import PythonRenderer
+from sympleints.Renderer import Renderer
 from sympleints.symbols import center_R, R, R_map, r, r_map, center_r, rP_map, rP2_map
 
 
@@ -155,12 +156,7 @@ def norm_pgto(lmn, exponent):
     L = sum(lmn)
     fact2l, fact2m, fact2n = [factorial2(2 * _ - 1) for _ in lmn]
     return sqrt(
-        2 ** (2 * L + 1.5)
-        * exponent ** (L + 1.5)
-        / fact2l
-        / fact2m
-        / fact2n
-        / pi**1.5
+        2 ** (2 * L + 1.5) * exponent ** (L + 1.5) / fact2l / fact2m / fact2n / pi**1.5
     )
 
 
@@ -407,6 +403,7 @@ def run(
     keys=None,
     cse_kwargs: Optional[dict] = None,
     boys_func: Optional[str] = None,
+    renderers: Optional[list[Renderer]] = None,
     cli=False,
 ):
     out_dir = Path(out_dir).absolute()
@@ -420,7 +417,7 @@ def run(
     if cli:
         header = make_header()
     else:
-        header = """TODO: fix headers for API call!"""
+        header = """TODO: fix headers when called via API!"""
 
     int_kind = "Spherical" if sph else "Cartesian"
 
@@ -449,11 +446,12 @@ def run(
         normalization=normalization,
         cse_kwargs=cse_kwargs,
     )
-    renderers = [
-        PythonRenderer(),
-        NumbaRenderer(),
-        # FortranRenderer(),
-    ]
+    if renderers is None:
+        renderers = [
+            PythonRenderer(),
+            # NumbaRenderer(),
+            # FortranRenderer(),
+        ]
     results = dict()
 
     def render_write(funcs):
@@ -506,6 +504,7 @@ def run(
             hermitian=[0, 1],
             parallel=False,
             with_ref_center=False,
+            ncomponents=1,
         )
         render_write(prefactor_funcs)
 
