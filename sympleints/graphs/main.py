@@ -10,7 +10,9 @@ from sympleints.config import L_AUX_MAX, L_MAX
 from sympleints.graphs.defs.int_nucattr import get_nucattr
 from sympleints.graphs.defs.int_2c2e import get_int_2c2e
 from sympleints.graphs.defs.int_3c2e import get_int_3c2e
-from sympleints.graphs.defs.int_4c2e import get_int_4c2e
+
+# from sympleints.graphs.defs.int_4c2e import get_int_4c2e
+from sympleints.graphs.defs.int_schwarz import get_int_schwarz
 from sympleints.graphs.generate import generate_integral
 from sympleints.graphs.render import render_fortran_module
 from sympleints.l_iters import ll_iter, lllaux_iter, schwarz_iter
@@ -58,7 +60,8 @@ def run():
         # 4-center-2-electron integrals for Schwarz screening
         "schwarz": (
             schwarz_iter(lmax),
-            get_int_4c2e,
+            # get_int_4c2e,
+            get_int_schwarz,
         ),
     }
     L_tots_iter, int_func = iter_funcs[key]
@@ -71,7 +74,6 @@ def run():
     gen_dur = time.time() - start
 
     start = time.time()
-    last_key = "".join(map(str, L_tots))
     rendered = render_fortran_module(gen_integrals, lmax=lmax, lauxmax=lauxmax)
     render_dur = time.time() - start
 
