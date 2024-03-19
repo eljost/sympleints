@@ -1,33 +1,33 @@
-subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, R, res)
-  real(kind=real64), intent(in) :: A(3), B(3), C(3), D(3), R(3)
-  real(kind=real64), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
-  real(kind=real64), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
+subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
+  real(dp), intent(in) :: A(3), B(3), C(3), D(3)
+  real(dp), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
+  real(dp), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
   ! Orbital exponents
-  real(kind=real64) :: ax, bx, cx, dx
+  real(dp) :: ax, bx, cx, dx
   ! Quantities dependent on centers A and B
-  real(kind=real64) :: px, mu, AB(3), RAB2, KAB, P(3), PA(3)
+  real(dp) :: px, mu, AB(3), RAB2, KAB, P(3), PA(3)
   ! Quantities dependent on centers C and D
-  real(kind=real64) :: qx, nu, CD(3), RCD2, KCD, Q(3), QC(3)
-  real(kind=real64) :: PQ(3), RPQ2, boys_arg
+  real(dp) :: qx, nu, CD(3), RCD2, KCD, Q(3), QC(3)
+  real(dp) :: PQ(3), RPQ2, boys_arg
   ! Counters
-  integer :: i, j, k, l
+  integer(i4) :: i, j, k, l
 
   ! 1D intermediate arrays
   {% for arr_name, arr in array_defs.items() %}
-  {# real(kind=real64){% if arr_name == 'res' %}, intent(out){% endif %} :: {{ arr_name }}({{ arr.shape[0] }})#}
+  {# real(dp){% if arr_name == 'res' %}, intent(out){% endif %} :: {{ arr_name }}({{ arr.shape[0] }})#}
   {% if arr_name == target_array_name %}
   ! Target array
   {% endif %}
-  real(kind=real64) :: {{ arr_name }}({{ arr.shape[0] }})
+  real(dp) :: {{ arr_name }}({{ arr.shape[0] }})
   {% endfor %}
 
   ! Arrays for partially contracted integrals
-  real(kind=real64) :: d_buffer({{ shell_size }})
-  real(kind=real64) :: c_buffer({{ shell_size }})
-  real(kind=real64) :: b_buffer({{ shell_size }})
+  real(dp) :: d_buffer({{ shell_size }})
+  real(dp) :: c_buffer({{ shell_size }})
+  real(dp) :: b_buffer({{ shell_size }})
   ! Final contracted integrals
-  !real(kind=real64), intent(out) :: res({{ shell_size }})
-  real(kind=real64), intent(out) :: res(:)
+  !real(dp), intent(out) :: res({{ shell_size }})
+  real(dp), intent(out) :: res(:)
 
   AB = A - B
   RAB2 = sum(AB**2)
@@ -53,7 +53,7 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, R, re
       do k = 1, size(cxs)
         cx = cxs(k)
         ! Loop over primitives on center D
-      	do l = 1, size(dxs)
+        do l = 1, size(dxs)
           dx = dxs(l)
           qx = cx + dx
           nu = cx * dx / qx
