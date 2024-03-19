@@ -8,7 +8,13 @@ from sympleints.helpers import BFKind
 
 
 def get_int_4c2e(L_tots):
-    """Electron repulsion integral."""
+    """Electron repulsion integral.
+
+    The ERIs are defined using chemist's notation.
+
+    (ab|cd) = integral over x1 and x2
+        a(x1) * b(x1) * 1/r_12 * c(x2) * d(x2)
+    """
 
     integral = Integral(
         "int_4c2e", L_tots, kinds=[BFKind.SPH, BFKind.SPH, BFKind.SPH, BFKind.SPH]

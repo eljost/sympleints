@@ -31,54 +31,87 @@ contains
     {% for L_tot in L_tots %}
         func_array({{ L_tot|join(", ") }})%f => {{ integral_name }}_{{ L_tot|join("") }}
     {% endfor %}
-  end subroutine {{ integral_name }}_init
+   end subroutine {{ integral_name }}_init
 
-  subroutine {{ integral_name }}(La, Lb, Lc, Ld, axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
-      integer(i4), intent(in) :: La, Lb, Lc, Ld
-      ! Orbital exponents
-      real(dp), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
-      ! Contraction coefficients
-      real(dp), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
-      ! Centers
-      real(dp), intent(in) :: A(3), B(3), C(3), D(3)
-      real(dp), intent(out) :: res(:)
+   subroutine reorder_baba_abab(res, sizea, sizeb)
+      real(dp), intent(in out) :: res(:)
+      integer(i4), intent(in) :: sizea, sizeb
+      integer(i4) :: a, b, c, d, i, j
+      real(dp) :: tmp(size(res))
 
-      ! Initializing with => null () adds an implicit save, which will mess
-      ! everything up when running with OpenMP.
-      procedure({{ integral_name }}_proc), pointer :: fncpntr
+      i = 1
+      do b = 1, sizeb
+         do a = 1, sizea
+           do d = 1, sizeb
+              do c = 1, sizea
+                 j = sizeb * sizea * sizeb * (a - 1) + sizea * sizeb * (b - 1) + sizeb * (c-1) + d
+                 tmp(j) = res(i)
+                 i = i + 1
+              end do
+           end do
+         end do
+      end do
+      res = tmp
+   end subroutine reorder_baba_abab
 
-      fncpntr => func_array(La, Lb, Lc, Ld)%f
+  ! subroutine {{ integral_name }}(La, Lb, Lc, Ld, axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
+  !    integer(i4), intent(in) :: La, Lb, Lc, Ld
+  !    ! Orbital exponents
+  !    real(dp), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
+  !    ! Contraction coefficients
+  !    real(dp), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
+  !    ! Centers
+  !    real(dp), intent(in) :: A(3), B(3), C(3), D(3)
+  !    real(dp), intent(out) :: res(:)
+  !
+  !    ! Initializing with => null () adds an implicit save, which will mess
+  !    ! everything up when running with OpenMP.
+  !    procedure({{ integral_name }}_proc), pointer :: fncpntr
+  !
+  !    fncpntr => func_array(La, Lb, Lc, Ld)%f
+  !
+  !    call fncpntr(axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
+  !    TODO: handle reordering and generate all functions before this can be enabled!
+  ! end subroutine {{ integral_name }}
 
-      call fncpntr(axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
-      !if ((La < Lb) .and. (Ld < Lc)) then
-      ! res(:, :, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*Lc+1, 2*Ld+1/), order=(/ 2, 1, 4, 3 /))
-      !else
-      !res(:, :, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*Lc+1, 2*Ld+1/))
-      !end if
-  end subroutine {{ integral_name }}
-
-  subroutine int_schwarz (La, Lb, axs, das, A, bxs, dbs, B, R res)
+  subroutine int_schwarz (La, Lb, axs, das, A, bxs, dbs, B, res)
       integer(i4), intent(in) :: La, Lb
       ! Orbital exponents
       real(dp), intent(in) :: axs(:), bxs(:)
       ! Contraction coefficients
       real(dp), intent(in) :: das(:), dbs(:)
       ! Centers
-      real(dp), intent(in) :: A(3), B(3), R(3)
+      real(dp), intent(in) :: A(3), B(3)
       real(dp), intent(out) :: res(:)
-      
+      real(dp) :: res_tmp((2*La + 1)**2 * (2*Lb +1)**2)
+      integer(i4) :: i, j, k, l, m, sizea, sizeb
       ! Initializing with => null () adds an implicit save, which will mess
       ! everything up when running with OpenMP.
       procedure({{ integral_name }}_proc), pointer :: fncpntr
 
+      sizea = 2 * La + 1
+      sizeb = 2 * Lb + 1
+
       fncpntr => func_array(La, Lb, La, Lb)%f
 
-      call fncpntr(axs, das, A, bxs, dbs, B, axs, das, A, bxs, dbs, B, res)
-      !if (La < Lb) then
-      !  res(:, :, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*La+1, 2*Lb+1/), order=(/ 2, 1, 4, 3 /))
-      !else
-      !res(:, :, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*La+1, 2*Lb+1/))
-      !end if
+      ! ERIs (ab|cd) are defined using chemist's notation (11|22). We are interested
+      ! in the integrals <aa|bb> in physicist's notation or (ab|ab) in chemist's notation.
+      call fncpntr(axs, das, A, bxs, dbs, B, axs, das, A, bxs, dbs, B, res_tmp)
+      
+      ! Reorder from (ba|ba) to (abab)
+      if (La < Lb) then
+         call reorder_baba_abab(res_tmp, sizea, sizeb)
+      end if
+
+      m = 1
+      do i = 1, sizea
+         do j = 1, sizeb
+            k = sizeb * sizea * sizeb * (i - 1) + sizeb * (i - 1)
+            l = sizea * sizeb * (j - 1) + j
+            res(m) = res_tmp(k + l)
+            m = m + 1
+         end do
+      end do
   end subroutine int_schwarz
   
   {% for func in funcs %}

@@ -34,8 +34,9 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
   CD = C - D
   RCD2 = sum(CD**2)
 
-  ! Loop over primitives on center A
+  ! Initialize result array
   res = 0.0d0
+  ! Loop over primitives on center A
   do i = 1, size(axs)
     ax = axs(i)
     ! Loop over primitives on center B
@@ -53,6 +54,7 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
       do k = 1, size(cxs)
         cx = cxs(k)
         ! Loop over primitives on center D
+        d_buffer = 0.0d0
         do l = 1, size(dxs)
           dx = dxs(l)
           qx = cx + dx
@@ -71,7 +73,7 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
           {% endfor %}
           {% endfor %}
         ! Contract primitive integrals at center D
-        d_buffer = d_buffer + dds(k) * {{ target_array_name }}
+        d_buffer = d_buffer + dds(l) * {{ target_array_name }}
         ! End of loop over D
         end do
         ! Contract primitive integrals at center C

@@ -5,8 +5,7 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, res)
   ! Orbital exponents
   real(dp) :: ax, bx
   ! Quantities dependent on centers A and B
-  ! TODO: kappa seems unused!
-  real(dp) :: px, kappa, mu, AB(3), P(3), PA(3), PB(3), R2AB
+  real(dp) :: px, mu, AB(3), P(3), PA(3), PB(3), R2AB
   ! Counters
   integer :: i, j
 

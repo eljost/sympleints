@@ -50,9 +50,10 @@ contains
 
       call fncpntr(axs, das, A, bxs, dbs, B, res)
 
-      ! With (La < Lb) the second index b will be the fastest changing index
-      ! With (Lb < La) the first index a will be the fastest changing index
-      ! which is more suitable for a Fortran loop-structure
+      ! The conditional below may be modified:
+      !    With (La < Lb) the second index b will be the fastest changing index
+      !    With (Lb < La) the first index a will be the fastest changing index
+      !    which is more suitable for a Fortran loop-structure
       if (Lb < La) then
         res = pack(reshape(res, (/2*La+1, 2*Lb+1/), order=(/ 2, 1 /)), .true.)
       end if

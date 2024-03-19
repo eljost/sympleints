@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-
 from pathlib import Path
 import sys
 import time
@@ -68,6 +67,7 @@ def run():
         print(f"Integral {i:03d}")
         integral = int_func(L_tots)
         gen_integrals.append(generate_integral(L_tots, integral, do_plot=do_plot))
+        sys.stdout.flush()
     gen_dur = time.time() - start
 
     start = time.time()
