@@ -46,13 +46,11 @@ class Functions:
         if self.parallel:
             # This realizes the generator containing the expressions
             #
-            # ... either in parallel
-            # use all but 1 CPU cores
+            # either in parallel using all CPU cores but 1 ...
             nodes = max(1, psutil.cpu_count(logical=False) - 1)
             pool = ProcessPool(nodes=nodes)
             self.ls_exprs = pool.map(inner, L_iter)
         else:
-            #
             # ... or in serial
             self.ls_exprs = [inner(Ls) for Ls in L_iter]
 

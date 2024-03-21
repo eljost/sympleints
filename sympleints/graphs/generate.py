@@ -159,7 +159,10 @@ def generate_integral(
     base = Path(".")
     fns = [base / get_G_fn(integral, transf, key) for transf in integral.rrs]
     fns = [get_path_in_cache_dir(fn) for fn in fns]
+    # Loop over all files that are required for a given combination of angular momenta
     for fn in fns:
+        # If one file is missing we generate all required files for the given angular momenta.
+        # After generating we can break from the loop, as all files will be there.
         if not fn.exists():
             opt_integral_transforms(
                 L_tots,
