@@ -54,6 +54,9 @@ contains
       res = tmp
    end subroutine reorder_baba_abab
 
+  ! The procedure below is disabled for now, as this module is currently only intended to be used
+  ! for the calculation of the integrals required for screening.
+  !
   ! subroutine {{ integral_name }}(La, Lb, Lc, Ld, axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
   !    integer(i4), intent(in) :: La, Lb, Lc, Ld
   !    ! Orbital exponents
@@ -83,35 +86,29 @@ contains
       ! Centers
       real(dp), intent(in) :: A(3), B(3)
       real(dp), intent(out) :: res(:)
-      real(dp) :: res_tmp((2*La + 1)**2 * (2*Lb +1)**2)
-      integer(i4) :: i, j, k, l, m, sizea, sizeb
+      integer(i4) :: sizea, sizeb
       ! Initializing with => null () adds an implicit save, which will mess
       ! everything up when running with OpenMP.
       procedure({{ integral_name }}_proc), pointer :: fncpntr
-
-      sizea = 2 * La + 1
-      sizeb = 2 * Lb + 1
 
       fncpntr => func_array(La, Lb, La, Lb)%f
 
       ! ERIs (ab|cd) are defined using chemist's notation (11|22). We are interested
       ! in the integrals <aa|bb> in physicist's notation or (ab|ab) in chemist's notation.
-      call fncpntr(axs, das, A, bxs, dbs, B, axs, das, A, bxs, dbs, B, res_tmp)
+      call fncpntr(axs, das, A, bxs, dbs, B, axs, das, A, bxs, dbs, B, res)
       
+      ! WARNING: The integrals aren't reordered from (ba|ba) to (ab|ab) when Lb > La!
+      ! Maybe this subroutine should already return only the norm?
+      !
+      ! Reordering the integrals is not strictly needed, as we are only interested in the norm
+      ! of the whole integral batch for screening purposes
+      !
       ! Reorder from (ba|ba) to (abab)
-      if (La < Lb) then
-         call reorder_baba_abab(res_tmp, sizea, sizeb)
-      end if
-
-      m = 1
-      do i = 1, sizea
-         do j = 1, sizeb
-            k = sizeb * sizea * sizeb * (i - 1) + sizeb * (i - 1)
-            l = sizea * sizeb * (j - 1) + j
-            res(m) = res_tmp(k + l)
-            m = m + 1
-         end do
-      end do
+      ! if (La < Lb) then
+      !   sizea = 2 * La + 1
+      !   sizeb = 2 * Lb + 1
+      !   call reorder_baba_abab(res, sizea, sizeb)
+      ! end if
   end subroutine int_schwarz
   
   {% for func in funcs %}
