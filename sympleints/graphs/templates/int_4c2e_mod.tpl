@@ -77,7 +77,7 @@ contains
   !    TODO: handle reordering and generate all functions before this can be enabled!
   ! end subroutine {{ integral_name }}
 
-  subroutine int_schwarz (La, Lb, axs, das, A, bxs, dbs, B, res)
+  real(dp) function int_schwarz (La, Lb, axs, das, A, bxs, dbs, B)
       integer(i4), intent(in) :: La, Lb
       ! Orbital exponents
       real(dp), intent(in) :: axs(:), bxs(:)
@@ -85,31 +85,21 @@ contains
       real(dp), intent(in) :: das(:), dbs(:)
       ! Centers
       real(dp), intent(in) :: A(3), B(3)
-      real(dp), intent(out) :: res(:)
-      integer(i4) :: sizea, sizeb
+      real(dp), allocatable :: tmp_res(:)
       ! Initializing with => null () adds an implicit save, which will mess
       ! everything up when running with OpenMP.
       procedure({{ integral_name }}_proc), pointer :: fncpntr
+
+      allocate(tmp_res((2*La + 1)**2 * (2*Lb + 1)**2))
 
       fncpntr => func_array(La, Lb, La, Lb)%f
 
       ! ERIs (ab|cd) are defined using chemist's notation (11|22). We are interested
       ! in the integrals <aa|bb> in physicist's notation or (ab|ab) in chemist's notation.
-      call fncpntr(axs, das, A, bxs, dbs, B, axs, das, A, bxs, dbs, B, res)
+      call fncpntr(axs, das, A, bxs, dbs, B, axs, das, A, bxs, dbs, B, tmp_res)
       
-      ! WARNING: The integrals aren't reordered from (ba|ba) to (ab|ab) when Lb > La!
-      ! Maybe this subroutine should already return only the norm?
-      !
-      ! Reordering the integrals is not strictly needed, as we are only interested in the norm
-      ! of the whole integral batch for screening purposes
-      !
-      ! Reorder from (ba|ba) to (abab)
-      ! if (La < Lb) then
-      !   sizea = 2 * La + 1
-      !   sizeb = 2 * Lb + 1
-      !   call reorder_baba_abab(res, sizea, sizeb)
-      ! end if
-  end subroutine int_schwarz
+      int_schwarz = norm2(tmp_res)
+  end function int_schwarz
   
   {% for func in funcs %}
     {{ func }}
