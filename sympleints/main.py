@@ -406,6 +406,9 @@ def run(
     renderers: Optional[list[Renderer]] = None,
     cli=False,
 ):
+    write_to_cwd = out_dir == None
+    if out_dir == None:
+        out_dir = "."
     out_dir = Path(out_dir).absolute()
 
     if keys is None:
@@ -461,7 +464,10 @@ def run(
         for renderer in renderers:
             lang = renderer.language.lower()
             lang_results = results.setdefault(lang, dict())
-            rend_out_dir = out_dir / f"{prefix}_{lang}"
+            if not write_to_cwd:
+                rend_out_dir = out_dir / f"{prefix}_{lang}"
+            else:
+                rend_out_dir = out_dir
             if not rend_out_dir.exists():
                 rend_out_dir.mkdir()
             fn = renderer.render_write(funcs, rend_out_dir)
@@ -1098,6 +1104,9 @@ def parse_args(args):
         help="Which Boys-function to use.",
     )
     parser.add_argument("--normalize", choices=normalization_map.keys(), default="none")
+    parser.add_argument(
+        "--fortran-only", action="store_true", help="Generate only Fortran code."
+    )
 
     return parser.parse_args(args)
 
@@ -1113,6 +1122,17 @@ def run_cli():
     prefix = args.prefix
     keys = args.keys
     boys_func = args.boys_func
+    fortran_only = args.fortran_only
+
+    if out_dir == "None":
+        out_dir = None
+
+    if fortran_only:
+        renderers = [
+            FortranRenderer(),
+        ]
+    else:
+        renderers = None
 
     cse_kwargs = None
     if args.opt_basic:
@@ -1131,6 +1151,7 @@ def run_cli():
         cse_kwargs=cse_kwargs,
         boys_func=boys_func,
         cli=True,
+        renderers=renderers,
     )
 
 
