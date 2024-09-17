@@ -85,6 +85,10 @@ class SphAngMom:
     def __getitem__(self, index):
         return (self.l, self.m)[index]
 
+    def __eq__(self, other):
+        """Utilize short-circuit evaluation."""
+        return self.l == other.l and self.m == other.m
+
     def __str__(self):
         return f"({self.l},{self.m})"
 
@@ -133,6 +137,10 @@ class CartAngMom:
 
     def __getitem__(self, index):
         return (self.x, self.y, self.z)[index]
+
+    def __eq__(self, other):
+        """Utilize short-circuit evaluation."""
+        return self.x == other.x and self.y == other.y and self.z == other.z
 
     def __str__(self):
         return f"({self.x},{self.y},{self.z})"
@@ -206,19 +214,57 @@ def name_for_L_tots_kinds(L_tots, kinds, base=ARR_BASE_NAME, with_aux=True):
     return name_for_ang_moms(ang_moms, base=base)
 
 
+def eq2(self, other):
+    return (
+        self.ang_moms[0] == other.ang_moms[0] and self.ang_moms[1] == other.ang_moms[1]
+    )
+
+
+def eq3(self, other):
+    return (
+        self.ang_moms[0] == other.ang_moms[0]
+        and self.ang_moms[1] == other.ang_moms[1]
+        and self.ang_moms[2] == other.ang_moms[2]
+    )
+
+
+def eq4(self, other):
+    return (
+        self.ang_moms[0] == other.ang_moms[0]
+        and self.ang_moms[1] == other.ang_moms[1]
+        and self.ang_moms[2] == other.ang_moms[2]
+        and self.ang_moms[3] == other.ang_moms[3]
+    )
+
+
+def eq5(self, other):
+    return (
+        self.ang_moms[0] == other.ang_moms[0]
+        and self.ang_moms[1] == other.ang_moms[1]
+        and self.ang_moms[2] == other.ang_moms[2]
+        and self.ang_moms[3] == other.ang_moms[3]
+        and self.ang_moms[4] == other.ang_moms[4]
+    )
+
+
+EQ_FUNCS = {
+    2: eq2,
+    3: eq3,
+    4: eq4,
+    5: eq5,
+}
+
+
 class AngMoms:
     def __init__(self, ang_moms):
         self.ang_moms = tuple(ang_moms)
+        # As self.ang_moms is never modified in-place we precompute &
+        # store the hash. This make a huuuge difference.
+        self._ang_moms_hash = hash(self.ang_moms)
+
+        self.eq_func = EQ_FUNCS[len(self.ang_moms)]
 
         self.with_aux = any([type(am) == AuxIndex for am in self.ang_moms])
-
-    """
-    def as_tuple(self, drop_aux=False):
-        if drop_aux and self.with_aux:
-            return tuple([am for am in self.ang_moms if not am.is_aux])
-        else:
-            return self.ang_moms
-    """
 
     def drop_aux(self):
         return AngMoms([am for am in self.ang_moms if not am.is_aux])
@@ -383,13 +429,10 @@ class AngMoms:
         return self.ang_moms[index]
 
     def __hash__(self):
-        return hash(self.ang_moms)
+        return self._ang_moms_hash
 
     def __eq__(self, other):
-        for this, other in zip(self.ang_moms, other.ang_moms):
-            if this != other:
-                return False
-        return True
+        return self.eq_func(self, other)
 
     def __repr__(self):
         return self.__str__()
