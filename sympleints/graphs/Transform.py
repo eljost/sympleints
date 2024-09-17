@@ -185,7 +185,7 @@ class Transform(metaclass=abc.ABCMeta):
         kinds,
         ninds,
         L_tots,
-        L_target_func=None,
+        L_target=None,
         order=None,
         edge_attrs: Optional[Dict] = None,
     ):
@@ -197,10 +197,9 @@ class Transform(metaclass=abc.ABCMeta):
         # L_target may be higher than self.L_tots[self.center_index] because
         # some recursion relations build up a higher angular momentum at a given
         # index, that is later reduced by another recursion relation.
-        if L_target_func is None:
-            L_target_func = lambda L_tots: L_tots[self.center_index]
-        self.L_target_func = L_target_func
-        self.L_target = self.L_target_func(self.L_tots)
+        if L_target is None:
+            L_target = L_tots[self.center_index]
+        self.L_target = L_target
         if order is None:
             order = range(len(kinds))
         self.order = order
