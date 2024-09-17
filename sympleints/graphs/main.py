@@ -5,13 +5,18 @@ from pathlib import Path
 import sys
 import time
 
+from pathos.pools import ProcessPool
+
 from sympleints.config import L_AUX_MAX, L_MAX
 from sympleints.graphs.defs.int_nucattr import get_nucattr
 from sympleints.graphs.defs.int_2c2e import get_int_2c2e
 from sympleints.graphs.defs.int_3c2e import get_int_3c2e
 from sympleints.graphs.defs.int_4c2e import get_int_4c2e
 from sympleints.graphs.generate import generate_integral
-from sympleints.graphs.render import render_fortran_module
+from sympleints.graphs.render import (
+    render_fortran_integral,
+    render_fortran_module_from_rendered,
+)
 from sympleints.l_iters import ll_iter, lllaux_iter, schwarz_iter
 
 
@@ -24,7 +29,17 @@ def parse_args(args):
     parser.add_argument(
         "--out-dir", default=".", help="Directory where the integral are written."
     )
+    parser.add_argument("--pal", type=int, default=1)
     return parser.parse_args(args)
+
+
+def gen_wrapper(L_tots, kwds):
+    do_plot = kwds["do_plot"]
+    int_func = kwds["int_func"]
+    integral_ = int_func(L_tots)
+    integral = generate_integral(L_tots, integral_, do_plot=do_plot)
+    funcs_rendered, L_tots_rendered = render_fortran_integral(integral)
+    return funcs_rendered, L_tots_rendered
 
 
 def run():
@@ -34,6 +49,7 @@ def run():
     lauxmax = args.lauxmax
     do_plot = args.do_plot
     out_dir = Path(args.out_dir).absolute()
+    pal = args.pal
 
     if not out_dir.exists():
         out_dir.mkdir()
@@ -60,22 +76,42 @@ def run():
             get_int_4c2e,
         ),
     }
+
     L_tots_iter, int_func = iter_funcs[key]
-    gen_integrals = list()
-    start = time.time()
-    for i, L_tots in enumerate(L_tots_iter):
-        print(f"Integral {i:03d}")
-        integral = int_func(L_tots)
-        gen_integrals.append(generate_integral(L_tots, integral, do_plot=do_plot))
-        sys.stdout.flush()
-    gen_dur = time.time() - start
+    L_tots_iter = list(L_tots_iter)
 
-    start = time.time()
-    last_key = "".join(map(str, L_tots))
-    rendered = render_fortran_module(gen_integrals, lmax=lmax, lauxmax=lauxmax)
-    render_dur = time.time() - start
+    kwds = {
+        "int_func": int_func,
+        "do_plot": do_plot,
+    }
+    gen_dur = time.time()
+    # In parallel
+    if pal > 1:
+        kwds_repeated = [kwds] * len(L_tots_iter)
+        pool = ProcessPool(nodes=pal)
+        results = pool.map(gen_wrapper, L_tots_iter, kwds_repeated)
+    # Serial
+    else:
+        results = [gen_wrapper(L_tots, kwds) for L_tots in L_tots_iter]
+    gen_dur = time.time() - gen_dur
 
-    mod_fn = f"{integral.name}.f90"
+    # Unpack rendered functions and associated L_tots
+    funcs = list()
+    L_tots = list()
+    for res_func, res_L_tots in results:
+        funcs.append(res_func)
+        L_tots.append(res_L_tots)
+
+    dummy_integral = int_func(L_tots_iter[0])
+    name = dummy_integral.name
+    render_dur = time.time()
+    rendered = render_fortran_module_from_rendered(
+        name, lmax=lmax, lauxmax=lauxmax, funcs=funcs, L_tots=L_tots
+    )
+    render_dur = time.time() - render_dur
+
+    mod_fn = f"{name}.f90"
+
     with open(out_dir / mod_fn, "w") as handle:
         handle.write(rendered)
 
