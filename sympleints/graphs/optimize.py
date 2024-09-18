@@ -109,7 +109,7 @@ def opt_integral_transforms(
         G = results["total"]
         if len(G) < min_ind:
             print(
-                "Found new minimum graph with size {len(G)} in cycle {i+1}/{max_cycles}."
+                f"Found new minimum graph with size {len(G)} in cycle {i+1}/{max_cycles}."
             )
             # dump_graph(G, f"min_{min_counter}")
             min_ind = len(G)
