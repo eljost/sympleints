@@ -1,5 +1,4 @@
 from sympleints.graphs.generate import GeneratedIntegral
-from sympleints.graphs.Integral import Integral
 from sympleints.FortranRenderer import format_with_fprettify, get_fortran_print_func
 
 from jinja2 import Environment, PackageLoader, select_autoescape
@@ -64,7 +63,9 @@ def render_fortran_integral(
     return rendered_funcs, L_tots
 
 
-def render_fortran_module_from_rendered(name, lmax, lauxmax, funcs, L_tots):
+def render_fortran_module_from_rendered(
+    name: str, lmax: int, lauxmax: int, funcs: list[str], L_tots: list[tuple[int]]
+) -> str:
     tpl = ENV.get_template(f"{name}_mod.tpl")
     rendered = tpl.render(
         integral_name=name,

@@ -29,6 +29,12 @@ def parse_args(args):
     parser.add_argument(
         "--out-dir", default=".", help="Directory where the integral are written."
     )
+    parser.add_argument(
+        "--low-first",
+        action="store_true",
+        help="Start with low angular momenta. Useful for debugging. Starting with "
+        "higher angular momenta is faster though.",
+    )
     parser.add_argument("--pal", type=int, default=1)
     return parser.parse_args(args)
 
@@ -50,6 +56,7 @@ def run():
     do_plot = args.do_plot
     out_dir = Path(args.out_dir).absolute()
     pal = args.pal
+    high_first = not args.low_first
 
     if not out_dir.exists():
         out_dir.mkdir()
@@ -79,6 +86,8 @@ def run():
 
     L_tots_iter, int_func = iter_funcs[key]
     L_tots_iter = list(L_tots_iter)
+    if high_first:
+        L_tots_iter = L_tots_iter[::-1]
 
     kwds = {
         "int_func": int_func,
@@ -94,13 +103,15 @@ def run():
     else:
         results = [gen_wrapper(L_tots, kwds) for L_tots in L_tots_iter]
     gen_dur = time.time() - gen_dur
+    if high_first:
+        results = results[::-1]
 
     # Unpack rendered functions and associated L_tots
     funcs = list()
     L_tots = list()
     for res_func, res_L_tots in results:
-        funcs.append(res_func)
-        L_tots.append(res_L_tots)
+        funcs.extend(res_func)
+        L_tots.extend(res_L_tots)
 
     dummy_integral = int_func(L_tots_iter[0])
     name = dummy_integral.name
