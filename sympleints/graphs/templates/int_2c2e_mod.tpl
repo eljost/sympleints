@@ -19,8 +19,17 @@ module mod_pa_{{ integral_name }}
       ! Centers
       real(dp), intent(in) :: A(3), B(3)
       real(dp), intent(out) :: res(:)
-      end subroutine {{ integral_name }}_proc
-   end interface
+    end subroutine {{ integral_name }}_proc
+    
+    {% for L_tot in L_tots %}
+    module subroutine {{ integral_name }}_{{ L_tot|join("") }} (axs, das, A, bxs, dbs, B, res)
+      real(dp), intent(in) :: axs(:), bxs(:)
+      real(dp), intent(in) :: das(:), dbs(:)
+      real(dp), intent(in) :: A(3), B(3)
+      real(dp), intent(out) :: res(:)
+    end subroutine {{ integral_name }}_{{ L_tot|join("") }}
+    {% endfor %}
+  end interface
 
    type(fp) :: func_array(0:{{ lauxmax }}, 0:{{ lauxmax }})
 
@@ -58,9 +67,4 @@ contains
         res = pack(reshape(res, (/2*La+1, 2*Lb+1/), order=(/ 2, 1 /)), .true.)
       end if
   end subroutine {{ key }}
-  
-  {% for func in funcs %}
-    {{ func }}
-    
-  {% endfor %}
 end module mod_pa_{{ integral_name }}

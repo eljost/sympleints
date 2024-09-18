@@ -210,6 +210,7 @@ def generate_integral(
         print(
             f"Read {name_with_L_tots} step {i+1}/{nsteps}, {len(G):>5d} nodes, {transform.name}"
         )
+        sys.stdout.flush()
 
         names, name_map = array_names_from_G(G)
         index_map, key_index_map, size_map = get_index_map_for_graph(

@@ -21,6 +21,15 @@ module mod_pa_{{ integral_name }}
       real(dp), intent(in) :: A(3), B(3), C(3), D(3)
       real(dp), intent(out) :: res(:)
       end subroutine {{ integral_name }}_proc
+
+      {% for L_tot in L_tots %}
+     module subroutine {{ integral_name }}_{{ L_tot|join("") }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
+      real(dp), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
+      real(dp), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
+      real(dp), intent(in) :: A(3), B(3), C(3), D(3)
+      real(dp), intent(out) :: res(:)
+      end subroutine {{ integral_name }}_{{ L_tot|join("") }}
+      {% endfor %}
    end interface
 
    type(fp) :: func_array(0:{{ lmax }}, 0:{{ lmax }}, 0:{{ lmax }}, 0:{{ lmax }})
@@ -100,9 +109,4 @@ contains
       
       int_schwarz = norm2(tmp_res)
   end function int_schwarz
-  
-  {% for func in funcs %}
-    {{ func }}
-    
-  {% endfor %}
 end module mod_pa_{{ integral_name }}

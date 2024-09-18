@@ -1,7 +1,4 @@
-subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
-  real(dp), intent(in) :: A(3), B(3), C(3), D(3)
-  real(dp), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
-  real(dp), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
+module procedure {{ name }}
   ! Orbital exponents
   real(dp) :: ax, bx, cx, dx
   ! Quantities dependent on centers A and B
@@ -14,7 +11,6 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
 
   ! 1D intermediate arrays
   {% for arr_name, arr in array_defs.items() %}
-  {# real(dp){% if arr_name == 'res' %}, intent(out){% endif %} :: {{ arr_name }}({{ arr.shape[0] }})#}
   {% if arr_name == target_array_name %}
   ! Target array
   {% endif %}
@@ -25,9 +21,6 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
   real(dp) :: d_buffer({{ shell_size }})
   real(dp) :: c_buffer({{ shell_size }})
   real(dp) :: b_buffer({{ shell_size }})
-  ! Final contracted integrals
-  !real(dp), intent(out) :: res({{ shell_size }})
-  real(dp), intent(out) :: res(:)
 
   AB = A - B
   RAB2 = sum(AB**2)
@@ -87,4 +80,4 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
     res = res + das(i) * b_buffer
   ! End of loop over A
    end do
-end subroutine {{ name }}
+end procedure {{ name }}

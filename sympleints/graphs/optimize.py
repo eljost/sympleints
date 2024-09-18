@@ -105,12 +105,12 @@ def opt_integral_transforms(
     start = time.time()
     transforms = integral.opt_transforms
     for i in range(max_cycles):
-        if i % 25 == 0:
-            print(i)
         results = graphs_from_transforms(L_tots, transforms, with_aux=with_aux)
         G = results["total"]
         if len(G) < min_ind:
-            print(i, len(G), "new minimum")
+            print(
+                "Found new minimum graph with size {len(G)} in cycle {i+1}/{max_cycles}."
+            )
             # dump_graph(G, f"min_{min_counter}")
             min_ind = len(G)
             # G_min = G

@@ -13,7 +13,7 @@ ENV = Environment(
 )
 
 
-def render_fortran(gen_integral: GeneratedIntegral):
+def render_fortran_func(gen_integral: GeneratedIntegral):
     gi = gen_integral  # Shortcut
 
     print_func = get_fortran_print_func()
@@ -35,11 +35,10 @@ def render_fortran(gen_integral: GeneratedIntegral):
     return rendered
 
 
-def render_fortran_equi(gen_integral: GeneratedIntegral):
+def render_fortran_equi_func(gen_integral: GeneratedIntegral):
     gi = gen_integral  # Shortcut
-    ncenters = gi.integral.ncenters
 
-    template = ENV.get_template(f"int_equi_func_{ncenters}c.tpl")
+    template = ENV.get_template(f"{gi.integral.name}_equi_func.tpl")
     rendered = template.render(
         name=gi.name,
         act_name=gi.act_genint.name,
@@ -54,24 +53,35 @@ def render_fortran_integral(
 ) -> tuple[list[str], list[tuple[int, ...]]]:
     rendered_funcs = list()
     L_tots = list()
-    rendered_funcs.append(render_fortran(gen_integral))
+    rendered_funcs.append(render_fortran_func(gen_integral))
     L_tots.append(gen_integral.L_tots)
     # Also create equivalent integrals
     for equi_genint in gen_integral.generate_equivalent():
-        rendered_funcs.append(render_fortran_equi(equi_genint))
+        rendered_funcs.append(render_fortran_equi_func(equi_genint))
         L_tots.append(equi_genint.L_tots)
     return rendered_funcs, L_tots
 
 
+def render_fortran_submodule(name: str, submodule_name: str, funcs: list[str]) -> str:
+    tpl = ENV.get_template(f"submodule.tpl")
+    rendered = tpl.render(
+        integral_name=name,
+        submodule_name=submodule_name,
+        funcs=funcs,
+    )
+    # Sadly, quite expensive for higher angular momenta.
+    # rendered = format_with_fprettify(rendered)
+    return rendered
+
+
 def render_fortran_module_from_rendered(
-    name: str, lmax: int, lauxmax: int, funcs: list[str], L_tots: list[tuple[int]]
+    name: str, lmax: int, lauxmax: int, L_tots: list[tuple[int]]
 ) -> str:
     tpl = ENV.get_template(f"{name}_mod.tpl")
     rendered = tpl.render(
         integral_name=name,
         lmax=lmax,  # TODO
         lauxmax=lauxmax,  # TODO
-        funcs=funcs,
         L_tots=L_tots,
     )
     # Sadly, quite expensive for higher angular momenta.

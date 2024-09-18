@@ -1,7 +1,4 @@
-subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, res)
-  real(dp), intent(in) :: A(3), B(3), C(3)
-  real(dp), intent(in) :: axs(:), bxs(:), cxs(:)
-  real(dp), intent(in) :: das(:), dbs(:), dcs(:)
+module procedure {{ name }}
   ! Orbital exponents
   real(dp) :: ax, bx, cx
   ! Quantities dependent on centers A and B
@@ -25,9 +22,6 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, res)
   ! Arrays for partially contracted integrals
   real(dp) :: c_buffer({{ shell_size }})
   real(dp) :: b_buffer({{ shell_size }})
-  ! Final contracted integrals
-  !real(dp), intent(out) :: res({{ shell_size }})
-  real(dp), intent(out) :: res(:)
 
   AB = A - B
   ! Smallest orbtial exponent at C
@@ -84,4 +78,4 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, res)
     res = res + das(i) * b_buffer
   ! End of loop over A
    end do
-end subroutine {{ name }}
+end procedure {{ name }}

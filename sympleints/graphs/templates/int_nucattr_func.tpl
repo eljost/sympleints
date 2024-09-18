@@ -1,31 +1,22 @@
-subroutine {{ name }} (axs, das, A, bxs, dbs, B, R, res)
-  real(kind=real64), intent(in) :: A(3), B(3)
-  ! Nucleus position
-  real(kind=real64), intent(in) :: R(3)
-  real(kind=real64), intent(in) :: axs(:), bxs(:)
-  real(kind=real64), intent(in) :: das(:), dbs(:)
+module procedure {{ name }}
   ! Orbital exponents
-  real(kind=real64) :: ax, bx
-  real(kind=real64) :: K
+  real(dp) :: ax, bx
+  real(dp) :: K
   ! Quantities dependent on centers A and B
-  real(kind=real64) :: px, mu, AB(3), R2AB, P(3), PA(3), PB(3), PR(3), R2PR
+  real(dp) :: px, mu, AB(3), R2AB, P(3), PA(3), PB(3), PR(3), R2PR
   ! Counters
   integer :: i, j
 
   ! 1D intermediate arrays
   {% for arr_name, arr in array_defs.items() %}
-  {# real(kind=real64){% if arr_name == 'res' %}, intent(out){% endif %} :: {{ arr_name }}({{ arr.shape[0] }})#}
   {% if arr_name == target_array_name %}
   ! Target array
   {% endif %}
-  real(kind=real64) :: {{ arr_name }}({{ arr.shape[0] }})
+  real(dp) :: {{ arr_name }}({{ arr.shape[0] }})
   {% endfor %}
 
   ! Arrays for partially contracted integrals
-  real(kind=real64) :: b_buffer({{ shell_size }})
-  ! Final contracted integrals
-  !real(kind=real64), intent(out) :: res({{ shell_size }})
-  real(kind=real64), intent(out) :: res(:)
+  real(dp) :: b_buffer({{ shell_size }})
 
   AB = A - B
   R2AB = sum(AB**2)
@@ -61,4 +52,4 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, R, res)
     res = res + das(i) * b_buffer
   ! End of loop over A
    end do
-end subroutine {{ name }}
+end procedure {{ name }}

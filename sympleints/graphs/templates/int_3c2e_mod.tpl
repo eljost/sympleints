@@ -1,6 +1,6 @@
 module mod_pa_{{ integral_name }}
 
-  use mod_pa_constants, only: i4, dp, PI, PI_4
+  use mod_pa_constants, only: dp, i4, PI, PI_4
   use mod_pa_boys, only: boys
   
   implicit none
@@ -23,8 +23,17 @@ module mod_pa_{{ integral_name }}
       ! Centers
       real(dp), intent(in) :: A(3), B(3), C(3)
       real(dp), intent(out) :: res(:)
-      end subroutine {{ integral_name }}_proc
-   end interface
+    end subroutine {{ integral_name }}_proc
+
+    {% for L_tot in L_tots %}
+    module subroutine {{ integral_name }}_{{ L_tot|join("") }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, res)
+      real(dp), intent(in) :: axs(:), bxs(:), cxs(:)
+      real(dp), intent(in) :: das(:), dbs(:), dcs(:)
+      real(dp), intent(in) :: A(3), B(3), C(3)
+      real(dp), intent(out) :: res(:)
+    end subroutine {{ integral_name }}_{{ L_tot|join("") }}
+    {% endfor %}
+  end interface
 
    type(fp) :: func_array(0:{{ lmax }}, 0:{{ lmax }}, 0:{{ lauxmax }})
 
@@ -80,11 +89,5 @@ contains
       if (La < Lb) then
           call resort_bac_abc(res, 2*La+1, 2*Lb+1, 2*Lc+1)
       end if
-      
   end subroutine {{ key }}
-  
-  {% for func in funcs %}
-    {{ func }}
-    
-  {% endfor %}
 end module mod_pa_{{ integral_name }}

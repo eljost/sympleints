@@ -16,6 +16,7 @@ from sympleints.graphs.generate import generate_integral
 from sympleints.graphs.render import (
     render_fortran_integral,
     render_fortran_module_from_rendered,
+    render_fortran_submodule,
 )
 from sympleints.l_iters import ll_iter, lllaux_iter, schwarz_iter
 
@@ -35,6 +36,7 @@ def parse_args(args):
         help="Start with low angular momenta. Useful for debugging. Starting with "
         "higher angular momenta is faster though.",
     )
+    parser.add_argument("--sources", action="store_true")
     parser.add_argument("--pal", type=int, default=1)
     return parser.parse_args(args)
 
@@ -43,13 +45,26 @@ def gen_wrapper(L_tots, kwds):
     do_plot = kwds["do_plot"]
     int_func = kwds["int_func"]
     integral_ = int_func(L_tots)
+    # This will take up most of the runtime
     integral = generate_integral(L_tots, integral_, do_plot=do_plot)
     funcs_rendered, L_tots_rendered = render_fortran_integral(integral)
     return funcs_rendered, L_tots_rendered
 
 
+def print_sources(name, ang_mom_iter):
+    files = [
+        f"{name}.f90",
+    ]
+    for ang_moms in ang_mom_iter:
+        joined = "".join(map(str, ang_moms))
+        files.append(f"{name}_{joined}_sub.f90")
+    for file in files:
+        print(file)
+
+
 def run():
     args = parse_args(sys.argv[1:])
+
     key = args.key
     lmax = args.lmax
     lauxmax = args.lauxmax
@@ -57,9 +72,7 @@ def run():
     out_dir = Path(args.out_dir).absolute()
     pal = args.pal
     high_first = not args.low_first
-
-    if not out_dir.exists():
-        out_dir.mkdir()
+    sources = args.sources
 
     iter_funcs = {
         # Nuclear attraction integrals
@@ -83,9 +96,18 @@ def run():
             get_int_4c2e,
         ),
     }
-
     L_tots_iter, int_func = iter_funcs[key]
     L_tots_iter = list(L_tots_iter)
+    dummy_integral = int_func(L_tots_iter[0])
+    name = dummy_integral.name
+
+    if sources:
+        print_sources(name, L_tots_iter)
+        return
+
+    if not out_dir.exists():
+        out_dir.mkdir()
+
     if high_first:
         L_tots_iter = L_tots_iter[::-1]
 
@@ -109,22 +131,37 @@ def run():
     # Unpack rendered functions and associated L_tots
     funcs = list()
     L_tots = list()
+    L_tots_flat = list()
+    fns = list()
     for res_func, res_L_tots in results:
-        funcs.extend(res_func)
-        L_tots.extend(res_L_tots)
+        funcs.append(res_func)
+        L_tots.append(res_L_tots)
+        L_tots_flat.extend(res_L_tots)
+        joined = "".join(map(str, res_L_tots[0]))
+        submodule_name = f"{name}_{joined}_sub"
+        rendered = render_fortran_submodule(name, submodule_name, res_func)
+        fn = submodule_name + ".f90"
+        fns.append(fn)
+        with open(out_dir / fn, "w") as handle:
+            handle.write(rendered)
 
-    dummy_integral = int_func(L_tots_iter[0])
-    name = dummy_integral.name
     render_dur = time.time()
     rendered = render_fortran_module_from_rendered(
-        name, lmax=lmax, lauxmax=lauxmax, funcs=funcs, L_tots=L_tots
+        name, lmax=lmax, lauxmax=lauxmax, L_tots=L_tots_flat
     )
     render_dur = time.time() - render_dur
 
     mod_fn = f"{name}.f90"
+    fns.insert(0, mod_fn)
 
     with open(out_dir / mod_fn, "w") as handle:
         handle.write(rendered)
+
+    # As of 2024-09-18 meson does not seem to be able to make use of a file
+    # containing all sources, as they must already be known at setup-time.
+    # sources_fn = f"{name}.sources"
+    # with open(out_dir / sources_fn, "w") as handle:
+    # handle.write("\n".join(fns))
 
     dur = gen_dur + render_dur
     print(f"Generation took {gen_dur:.1f} s")
@@ -134,3 +171,4 @@ def run():
 
 if __name__ == "__main__":
     run()
+    # run_submodule()
