@@ -15,4 +15,3 @@ from sympleints.helpers import (
     Timer,
 )
 from sympleints.logger import bench_logger, logger
-from sympleints.version import version as __version__
