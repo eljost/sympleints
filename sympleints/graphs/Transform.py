@@ -6,13 +6,16 @@ from typing import Dict, Optional, Tuple
 import networkx as nx
 import sympy
 from sympy.codegen.ast import Assignment
+import sympy.core.function
 
 from sympleints.graphs.AngMoms import AngMoms, CartAngMom, SphAngMom
 from sympleints.helpers import BFKind, shell_iter
 
-from pysisyphus.wavefunction.cart2sph import expand_sph_quantum_numbers
+from sympleints.cart2sph import expand_sph_quantum_numbers
 
 
+# Dummy type to recognize calls to the Boys function
+BOYS_TYPE = type(sympy.sympify("boys(0, 0.0)"))
 KEY_MAP = {
     "a": 0,
     "b": 1,
@@ -132,6 +135,25 @@ def parse_raw_expr(raw_expr: str, sub_key="Int") -> RRExpr:
     }
     # Create actual sympy expressions/symbols
     expr = sympy.sympify(expr_subbed, locals=locals)
+
+    # At one point I replaced the Boys-function with an AppliedUndef, to allow
+    # parallelization of sympleints using the 'pathos' engine. Previously, the Boys
+    # function was defined sympy.Function but this definition was/is somehow not picklable
+    # by 'dill', the pickling module of pathos.
+    # This issue was solved by using an AppliedUndef for the Boys-function.
+    # So we detect calls to the Boys-function here and replace them with the appropriate
+    # AppliedUndef, so it is correctly printed by our FortranRenderer.
+    #
+    # See also the comment regarding the boys-Function in sympleints.defs.coulomb.
+    boys_subs = {}
+    for org_expr in expr.args:
+        # Detect calls by comparing the type against a previously defined dummy type
+        if not type(org_expr) == BOYS_TYPE:
+            continue
+        boys_n, boys_arg = org_expr.args
+        boys_subs[org_expr] = sympy.core.function.AppliedUndef("boys", boys_n, boys_arg)
+    expr = expr.subs(boys_subs)
+
     # It seems we can't indicate real=True/integer=True here, as this will mess up
     # the subs later in the RR.
     ints = sympy.symbols(ints)
@@ -163,7 +185,7 @@ class Transform(metaclass=abc.ABCMeta):
         kinds,
         ninds,
         L_tots,
-        L_target_func=None,
+        L_target=None,
         order=None,
         edge_attrs: Optional[Dict] = None,
     ):
@@ -175,10 +197,9 @@ class Transform(metaclass=abc.ABCMeta):
         # L_target may be higher than self.L_tots[self.center_index] because
         # some recursion relations build up a higher angular momentum at a given
         # index, that is later reduced by another recursion relation.
-        if L_target_func is None:
-            L_target_func = lambda L_tots: L_tots[self.center_index]
-        self.L_target_func = L_target_func
-        self.L_target = self.L_target_func(self.L_tots)
+        if L_target is None:
+            L_target = L_tots[self.center_index]
+        self.L_target = L_target
         if order is None:
             order = range(len(kinds))
         self.order = order

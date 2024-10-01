@@ -1,8 +1,7 @@
-module mod_{{ integral_name }}
-  use iso_fortran_env, only: real64
+module mod_pa_{{ integral_name }}
 
-  use mod_constants, only: PI, PI_4
-  use mod_boys, only: boys
+  use mod_pa_constants, only: dp, i4, PI, PI_4
+  use mod_pa_boys, only: boys
   
   implicit none
 
@@ -11,17 +10,26 @@ module mod_{{ integral_name }}
   end type fp
 
   interface
-    subroutine {{ integral_name }}_proc(axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, R, ress)
-      import :: real64
+    subroutine {{ integral_name }}_proc(axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
+      import :: dp
 
       ! Orbital exponents
-      real(kind=real64), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
+      real(dp), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
       ! Contraction coefficients
-      real(kind=real64), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
+      real(dp), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
       ! Centers
-      real(kind=real64), intent(in) :: A(3), B(3), C(3), D(3), R(3)
-      real(kind=real64), intent(out) :: ress(:)
+      real(dp), intent(in) :: A(3), B(3), C(3), D(3)
+      real(dp), intent(out) :: res(:)
       end subroutine {{ integral_name }}_proc
+
+      {% for L_tot in L_tots %}
+     module subroutine {{ integral_name }}_{{ L_tot|join("") }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
+      real(dp), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
+      real(dp), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
+      real(dp), intent(in) :: A(3), B(3), C(3), D(3)
+      real(dp), intent(out) :: res(:)
+      end subroutine {{ integral_name }}_{{ L_tot|join("") }}
+      {% endfor %}
    end interface
 
    type(fp) :: func_array(0:{{ lmax }}, 0:{{ lmax }}, 0:{{ lmax }}, 0:{{ lmax }})
@@ -32,63 +40,73 @@ contains
     {% for L_tot in L_tots %}
         func_array({{ L_tot|join(", ") }})%f => {{ integral_name }}_{{ L_tot|join("") }}
     {% endfor %}
-  end subroutine {{ integral_name }}_init
+   end subroutine {{ integral_name }}_init
 
-  subroutine {{ integral_name }}(La, Lb, Lc, Ld, axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, R, res)
-      integer, intent(in) :: La, Lb, Lc, Ld
+   subroutine reorder_baba_abab(res, sizea, sizeb)
+      real(dp), intent(in out) :: res(:)
+      integer(i4), intent(in) :: sizea, sizeb
+      integer(i4) :: a, b, c, d, i, j
+      real(dp) :: tmp(size(res))
+
+      i = 1
+      do b = 1, sizeb
+         do a = 1, sizea
+           do d = 1, sizeb
+              do c = 1, sizea
+                 j = sizeb * sizea * sizeb * (a - 1) + sizea * sizeb * (b - 1) + sizeb * (c-1) + d
+                 tmp(j) = res(i)
+                 i = i + 1
+              end do
+           end do
+         end do
+      end do
+      res = tmp
+   end subroutine reorder_baba_abab
+
+  ! The procedure below is disabled for now, as this module is currently only intended to be used
+  ! for the calculation of the integrals required for screening.
+  !
+  ! subroutine {{ integral_name }}(La, Lb, Lc, Ld, axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
+  !    integer(i4), intent(in) :: La, Lb, Lc, Ld
+  !    ! Orbital exponents
+  !    real(dp), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
+  !    ! Contraction coefficients
+  !    real(dp), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
+  !    ! Centers
+  !    real(dp), intent(in) :: A(3), B(3), C(3), D(3)
+  !    real(dp), intent(out) :: res(:)
+  !
+  !    ! Initializing with => null () adds an implicit save, which will mess
+  !    ! everything up when running with OpenMP.
+  !    procedure({{ integral_name }}_proc), pointer :: fncpntr
+  !
+  !    fncpntr => func_array(La, Lb, Lc, Ld)%f
+  !
+  !    call fncpntr(axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, res)
+  !    TODO: handle reordering and generate all functions before this can be enabled!
+  ! end subroutine {{ integral_name }}
+
+  real(dp) function int_schwarz (La, Lb, axs, das, A, bxs, dbs, B)
+      integer(i4), intent(in) :: La, Lb
       ! Orbital exponents
-      real(kind=real64), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
+      real(dp), intent(in) :: axs(:), bxs(:)
       ! Contraction coefficients
-      real(kind=real64), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
+      real(dp), intent(in) :: das(:), dbs(:)
       ! Centers
-      real(kind=real64), intent(in) :: A(3), B(3), C(3), D(3), R(3)
-      real(kind=real64), intent(out) :: res(:, :, :, :)
-
-      real(kind=real64), allocatable :: ress(:)
+      real(dp), intent(in) :: A(3), B(3)
+      real(dp), allocatable :: tmp_res(:)
       ! Initializing with => null () adds an implicit save, which will mess
       ! everything up when running with OpenMP.
       procedure({{ integral_name }}_proc), pointer :: fncpntr
 
-      allocate(ress(size(res)))
-      fncpntr => func_array(La, Lb, Lc, Ld)%f
+      allocate(tmp_res((2*La + 1)**2 * (2*Lb + 1)**2))
 
-      call fncpntr(axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, R, ress)
-      if ((La < Lb) .and. (Ld < Lc)) then
-        res(:, :, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*Lc+1, 2*Ld+1/), order=(/ 2, 1, 4, 3 /))
-      else
-      res(:, :, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*Lc+1, 2*Ld+1/))
-      end if
-  end subroutine {{ integral_name }}
-
-  subroutine int_schwarz (La, Lb, axs, das, A, bxs, dbs, B, res)
-      integer, intent(in) :: La, Lb
-      ! Orbital exponents
-      real(kind=real64), intent(in) :: axs(:), bxs(:)
-      ! Contraction coefficients
-      real(kind=real64), intent(in) :: das(:), dbs(:)
-      ! Centers
-      real(kind=real64), intent(in) :: A(3), B(3)
-      real(kind=real64) :: R(3)
-      real(kind=real64), intent(out) :: res(:, :, :, :)
-
-      real(kind=real64), allocatable :: ress(:)
-      ! Initializing with => null () adds an implicit save, which will mess
-      ! everything up when running with OpenMP.
-      procedure({{ integral_name }}_proc), pointer :: fncpntr
-
-      allocate(ress(size(res)))
       fncpntr => func_array(La, Lb, La, Lb)%f
 
-      call fncpntr(axs, das, A, bxs, dbs, B, axs, das, A, bxs, dbs, B, R, ress)
-      if (La < Lb) then
-        res(:, :, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*La+1, 2*Lb+1/), order=(/ 2, 1, 4, 3 /))
-      else
-      res(:, :, :, :) = reshape(ress, (/2*La+1, 2*Lb+1, 2*La+1, 2*Lb+1/))
-      end if
-  end subroutine int_schwarz
-  
-  {% for func in funcs %}
-    {{ func }}
-    
-  {% endfor %}
-end module mod_{{ integral_name }}
+      ! ERIs (ab|cd) are defined using chemist's notation (11|22). We are interested
+      ! in the integrals <aa|bb> in physicist's notation or (ab|ab) in chemist's notation.
+      call fncpntr(axs, das, A, bxs, dbs, B, axs, das, A, bxs, dbs, B, tmp_res)
+      
+      int_schwarz = norm2(tmp_res)
+  end function int_schwarz
+end module mod_pa_{{ integral_name }}

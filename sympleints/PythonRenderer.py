@@ -22,11 +22,17 @@ class PythonRenderer(Renderer):
 
     _tpls = {
         "func": "py_func.tpl",
+        "equi_func": "py_equi_func.tpl",
         "func_dict": "py_func_dict.tpl",
         "module": "py_module.tpl",
     }
     _primitive = False
-    _drop_dim = True
+    _drop_dim = True  # TODO: remove this?!
+    resort_func_dict = {
+        1: (None, ()),
+        2: ("resort_ba_ab", (2, 1)),
+        3: ("resort_bac_abc", (2, 1)),
+    }
 
     def render_function(
         self,
@@ -37,6 +43,7 @@ class PythonRenderer(Renderer):
         shape_iter,
         args,
         name,
+        L_tots,
         doc_str="",
     ):
         # This allows using the 'boys' function without producing an error
@@ -70,6 +77,35 @@ class PythonRenderer(Renderer):
             n_return_vals=len(reduced),
             doc_str=doc_str,
             shape=shape,
+            functions=functions,
+            primitive=functions.primitive,
+        )
+        return rendered
+
+    def render_equi_function(
+        self,
+        functions,
+        name,
+        equi_name,
+        equi_inds,
+        shape,
+    ):
+        resort_func, new_order = self.resort_func_dict[functions.nbfs]
+        sizes = shape
+        sizes = [shape[i] for i in new_order]
+        equi_args = ", ".join(functions.full_args_for_bf_inds(equi_inds))
+        args = ", ".join(functions.full_args)
+        ncomponents = functions.ncomponents
+
+        tpl = self.get_template(key="equi_func")
+        rendered = tpl.render(
+            equi_name=equi_name,
+            equi_args=equi_args,
+            name=name,
+            args=args,
+            sizes=sizes,
+            resort_func=resort_func,
+            ncomponents=ncomponents,
         )
         return rendered
 
@@ -80,13 +116,17 @@ class PythonRenderer(Renderer):
 
     def render_module(self, functions, rendered_funcs, **tpl_kwargs):
         func_dict = self.render_func_dict(functions.name, rendered_funcs)
+        resort_func, _ = self.resort_func_dict[functions.nbfs]
         tpl = self.get_template(key="module")
         _tpl_kwargs = {
             "header": functions.header,
             "comment": functions.comment,
-            "boys": functions.boys,
+            "boys": functions.boys_func,
             "funcs": rendered_funcs,
             "func_dict": func_dict,
+            "name": functions.name,
+            "args": functions.full_args,
+            "resort_func": resort_func,
         }
         _tpl_kwargs.update(tpl_kwargs)
         rendered = tpl.render(**_tpl_kwargs)
@@ -97,7 +137,7 @@ class PythonRenderer(Renderer):
                 rendered = black.format_str(
                     rendered, mode=black.FileMode(line_length=90)
                 )
-                print("\t ... formatted Python code with black")
+                print(f"\t ... formatted {self.language} code with black")
             except black.parsing.InvalidInput:
                 print("Error while parsing with black. Dumping nontheless.")
         except ModuleNotFoundError:

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+import itertools as it
 from typing import Callable, List, Optional
 
 from pathos.pools import ProcessPool
@@ -25,62 +26,68 @@ class Functions:
     header: str = ""
     doc_func: Optional[Callable] = None
     comment: str = ""
-    boys: bool = False
-    ncomponents: int = 0
+    boys_func: Optional[str] = None
+    ncomponents: int = 1
     with_ref_center: bool = True
     full_name: Optional["str"] = None
     l_aux_max: Optional[int] = None
     spherical: bool = False
     primitive: bool = False
     parallel: Optional[bool] = True
+    hermitian: Optional[list[int]] = None
 
     def __post_init__(self):
         assert self.l_max >= 0
         assert len(self.coeffs) == len(self.exponents) == len(self.centers)
-        assert self.ncomponents >= 0
+        assert self.ncomponents >= 1
 
         L_iter, inner = self.ls_exprs
         self.L_iter = L_iter
         if self.parallel:
             # This realizes the generator containing the expressions
             #
-            # ... either in parallel
-            # use all but 1 CPU cores
+            # either in parallel using all CPU cores but 1 ...
             nodes = max(1, psutil.cpu_count(logical=False) - 1)
             pool = ProcessPool(nodes=nodes)
             self.ls_exprs = pool.map(inner, L_iter)
         else:
-            #
             # ... or in serial
             self.ls_exprs = [inner(Ls) for Ls in L_iter]
 
         if self.full_name is None:
             self.full_name = self.name
 
+        if self.hermitian is None:
+            self.hermitian = []
+
     @property
     def Ls(self):
         return ["La", "Lb", "Lc", "Ld"][: self.nbfs]
 
-    @property
-    def prim_args(self):
-        args = list()
-        for exponent, coeff, center in zip(self.exponents, self.coeffs, self.centers):
-            args.extend([str(exponent), str(coeff), str(center)])
-        return args
+    def bf_args(self, i):
+        """Basis function arguments: exponent, contr. coefficient and center."""
+        return [str(lst[i]) for lst in (self.exponents, self.coeffs, self.centers)]
+
+    def prim_args_for_bf_inds(self, bf_inds):
+        return list(it.chain(*[self.bf_args(i) for i in bf_inds]))
 
     @property
-    def full_args(self):
-        args = self.prim_args
+    def prim_args(self):
+        return self.prim_args_for_bf_inds(range(self.nbfs))
+
+    def full_args_for_bf_inds(self, bf_inds):
+        args = self.prim_args_for_bf_inds(bf_inds)
         if self.with_ref_center:
             args += [str(self.ref_center)]
         return args
 
     @property
+    def full_args(self):
+        return self.full_args_for_bf_inds(range(self.nbfs))
+
+    @property
     def prim_container_args(self):
-        container_args = list()
-        for exponent, coeff, center in zip(self.exponents, self.coeffs, self.centers):
-            container_args.extend([f"{exponent}s", f"{coeff}s", f"{center}"])
-        return container_args
+        return [f"{arg}s" for arg in self.prim_args]
 
     @property
     def full_container_args(self):
@@ -125,7 +132,8 @@ class Functions:
 
     @property
     def nbfs(self):
-        return len(self.coeffs)
+        # Return number of total angular momenta
+        return len(self.ls_exprs[0][0])
 
     @property
     def ls_name_map(self):
@@ -154,8 +162,3 @@ class Functions:
     @property
     def cartesian(self):
         return not self.spherical
-
-    # def numba_func_type(self):
-    # pass
-
-    # def numba_driver_type(self):

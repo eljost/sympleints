@@ -1,8 +1,6 @@
-module mod_{{ integral_name }}
-  use iso_fortran_env, only: real64
-
-  use mod_constants, only: PI
-  use mod_boys, only: boys
+module mod_pa_{{ integral_name }}
+  use mod_pa_constants, only: dp, PI
+  use mod_pa_boys, only: boys
 
   implicit none
 
@@ -11,21 +9,31 @@ module mod_{{ integral_name }}
   end type fp
 
   interface
-    subroutine {{ integral_name }}_proc(axs, das, A, bxs, dbs, B, R, ress)
-      import :: real64
+    subroutine {{ integral_name }}_proc(axs, das, A, bxs, dbs, B, R, res)
+      import :: dp
 
       ! Orbital exponents
-      real(kind=real64), intent(in) :: axs(:), bxs(:)
+      real(dp), intent(in) :: axs(:), bxs(:)
       ! Contraction coefficients
-      real(kind=real64), intent(in) :: das(:), dbs(:)
+      real(dp), intent(in) :: das(:), dbs(:)
       ! Centers
-      real(kind=real64), intent(in) :: A(3), B(3)
-      real(kind=real64), intent(in) :: R(3)
-      real(kind=real64), intent(out) :: ress(:)
-      end subroutine {{ integral_name }}_proc
-   end interface
+      real(dp), intent(in) :: A(3), B(3)
+      real(dp), intent(in) :: R(3)
+      real(dp), intent(out) :: res(:)
+    end subroutine {{ integral_name }}_proc
 
-   type(fp) :: func_array(0:{{ lauxmax }}, 0:{{ lauxmax }})
+    {% for L_tot in L_tots %}
+    module subroutine {{ integral_name }}_{{ L_tot|join("") }} (axs, das, A, bxs, dbs, B, R, res)
+      real(dp), intent(in) :: axs(:), bxs(:)
+      real(dp), intent(in) :: das(:), dbs(:)
+      real(dp), intent(in) :: A(3), B(3)
+      real(dp), intent(in) :: R(3)
+      real(dp), intent(out) :: res(:)
+    end subroutine {{ integral_name }}_{{ L_tot|join("") }}
+    {% endfor %}
+  end interface
+
+   type(fp) :: func_array(0:{{ lmax }}, 0:{{ lmax }})
 
 contains
   subroutine {{ integral_name }}_init()
@@ -38,31 +46,24 @@ contains
   subroutine {{ integral_name }}(La, Lb, axs, das, A, bxs, dbs, B, R, res)
       integer, intent(in) :: La, Lb
       ! Orbital exponents
-      real(kind=real64), intent(in) :: axs(:), bxs(:)
+      real(dp), intent(in) :: axs(:), bxs(:)
       ! Contraction coefficients
-      real(kind=real64), intent(in) :: das(:), dbs(:)
+      real(dp), intent(in) :: das(:), dbs(:)
       ! Centers
-      real(kind=real64), intent(in) :: A(3), B(3)
-      real(kind=real64), intent(in) :: R(3)
-      real(kind=real64), intent(out) :: res(:, :)
+      real(dp), intent(in) :: A(3), B(3)
+      real(dp), intent(in) :: R(3)
+      real(dp), intent(out) :: res(:)
 
-      real(kind=real64), allocatable :: ress(:)
       ! Initializing with => null () adds an implicit save, which will mess
       ! everything up when running with OpenMP.
       procedure({{ integral_name }}_proc), pointer :: fncpntr
 
-      allocate(ress(size(res)))
       fncpntr => func_array(La, Lb)%f
 
-      call fncpntr(axs, das, A, bxs, dbs, B, R, ress)
-      res(:, :) = reshape(ress, (/2*La+1, 2*Lb+1/))
-      if (La < Lb) then
-      	res = transpose(res)
+      call fncpntr(axs, das, A, bxs, dbs, B, R, res)
+      if (Lb < La) then
+        res = pack(reshape(res, (/2*La+1, 2*Lb+1/), order=(/ 2, 1 /)), .true.)
       end if
   end subroutine {{ key }}
 
-  {% for func in funcs %}
-    {{ func }}
-
-  {% endfor %}
-end module mod_{{ integral_name }}
+end module mod_pa_{{ integral_name }}

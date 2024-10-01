@@ -14,7 +14,7 @@ def get_int_3c2e(L_tots):
             "+ (La[pos]-1)/(2*px) * (Int(-2a) - alpha/px * Int(-2a+n))"
         ),
         order=(2, 0, 1),
-        L_target_func=lambda L_tots: L_tots[0] + L_tots[1],
+        L_target=L_tots[0] + L_tots[1],
     )
     # VRR2, buildup of C
     integral.add_transformation(

@@ -1,41 +1,35 @@
-subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, R, res)
-  real(kind=real64), intent(in) :: A(3), B(3), C(3), D(3), R(3)
-  real(kind=real64), intent(in) :: axs(:), bxs(:), cxs(:), dxs(:)
-  real(kind=real64), intent(in) :: das(:), dbs(:), dcs(:), dds(:)
+module procedure {{ name }}
   ! Orbital exponents
-  real(kind=real64) :: ax, bx, cx, dx
+  real(dp) :: ax, bx, cx, dx
   ! Quantities dependent on centers A and B
-  real(kind=real64) :: px, mu, AB(3), RAB2, KAB, P(3), PA(3)
+  real(dp) :: px, mu, AB(3), RAB2, KAB, P(3), PA(3)
   ! Quantities dependent on centers C and D
-  real(kind=real64) :: qx, nu, CD(3), RCD2, KCD, Q(3), QC(3)
-  real(kind=real64) :: PQ(3), RPQ2, boys_arg
+  real(dp) :: qx, nu, CD(3), RCD2, KCD, Q(3), QC(3)
+  real(dp) :: PQ(3), RPQ2, boys_arg
   ! Counters
-  integer :: i, j, k, l
+  integer(i4) :: i, j, k, l
 
   ! 1D intermediate arrays
   {% for arr_name, arr in array_defs.items() %}
-  {# real(kind=real64){% if arr_name == 'res' %}, intent(out){% endif %} :: {{ arr_name }}({{ arr.shape[0] }})#}
   {% if arr_name == target_array_name %}
   ! Target array
   {% endif %}
-  real(kind=real64) :: {{ arr_name }}({{ arr.shape[0] }})
+  real(dp) :: {{ arr_name }}({{ arr.shape[0] }})
   {% endfor %}
 
   ! Arrays for partially contracted integrals
-  real(kind=real64) :: d_buffer({{ shell_size }})
-  real(kind=real64) :: c_buffer({{ shell_size }})
-  real(kind=real64) :: b_buffer({{ shell_size }})
-  ! Final contracted integrals
-  !real(kind=real64), intent(out) :: res({{ shell_size }})
-  real(kind=real64), intent(out) :: res(:)
+  real(dp) :: d_buffer({{ shell_size }})
+  real(dp) :: c_buffer({{ shell_size }})
+  real(dp) :: b_buffer({{ shell_size }})
 
   AB = A - B
   RAB2 = sum(AB**2)
   CD = C - D
   RCD2 = sum(CD**2)
 
-  ! Loop over primitives on center A
+  ! Initialize result array
   res = 0.0d0
+  ! Loop over primitives on center A
   do i = 1, size(axs)
     ax = axs(i)
     ! Loop over primitives on center B
@@ -53,7 +47,8 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, R, re
       do k = 1, size(cxs)
         cx = cxs(k)
         ! Loop over primitives on center D
-      	do l = 1, size(dxs)
+        d_buffer = 0.0d0
+        do l = 1, size(dxs)
           dx = dxs(l)
           qx = cx + dx
           nu = cx * dx / qx
@@ -71,7 +66,7 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, R, re
           {% endfor %}
           {% endfor %}
         ! Contract primitive integrals at center D
-        d_buffer = d_buffer + dds(k) * {{ target_array_name }}
+        d_buffer = d_buffer + dds(l) * {{ target_array_name }}
         ! End of loop over D
         end do
         ! Contract primitive integrals at center C
@@ -85,4 +80,4 @@ subroutine {{ name }} (axs, das, A, bxs, dbs, B, cxs, dcs, C, dxs, dds, D, R, re
     res = res + das(i) * b_buffer
   ! End of loop over A
    end do
-end subroutine {{ name }}
+end procedure {{ name }}

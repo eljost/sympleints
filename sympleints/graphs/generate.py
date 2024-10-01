@@ -159,7 +159,10 @@ def generate_integral(
     base = Path(".")
     fns = [base / get_G_fn(integral, transf, key) for transf in integral.rrs]
     fns = [get_path_in_cache_dir(fn) for fn in fns]
+    # Loop over all files that are required for a given combination of angular momenta
     for fn in fns:
+        # If one file is missing we generate all required files for the given angular momenta.
+        # After generating we can break from the loop, as all files will be there.
         if not fn.exists():
             opt_integral_transforms(
                 L_tots,
@@ -207,6 +210,7 @@ def generate_integral(
         print(
             f"Read {name_with_L_tots} step {i+1}/{nsteps}, {len(G):>5d} nodes, {transform.name}"
         )
+        sys.stdout.flush()
 
         names, name_map = array_names_from_G(G)
         index_map, key_index_map, size_map = get_index_map_for_graph(

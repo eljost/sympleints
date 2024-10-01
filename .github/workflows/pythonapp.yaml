@@ -8,29 +8,29 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff pytest pytest-cov
+          pip install ruff
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Check for syntax errors and undefined names with ruff
         run: |
-          ruff --format=github --select=E9,F63,F7,F82 --target-version=py39 sympleints
+          ruff check --output-format=github --select=E9,F63,F7,F82 --target-version=py39 sympleints
       - name: Basic linting ruff
         run: |
-          ruff --format=github --target-version=py39 sympleints
+          ruff --output-format=github --target-version=py39 sympleints
         continue-on-error: true
       - name: Install sympleints
         run: |
-          python -m pip install .
+          python -m pip install .[test]
       - name: Test with pytest
         run: >
           pytest ./tests
@@ -39,8 +39,9 @@ jobs:
           --cov=sympleints
           --cov-report=xml:coverage-${{ matrix.python-version }}.xml
           --cov-report=html:coverage-${{ matrix.python-version }}.html
+          --durations=0
       - name: Keep pytest results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: pytest-results-${{ matrix.python-version }}
           path: |

@@ -108,7 +108,7 @@ def gen_multipole_sph_shell(La_tot, Lb_tot, a, b, A, B, Le_tot=2):
     exprs = list()
     all_lmns = list()
 
-    # Loop over all operators that we wan't to generate.
+    # Loop over all operators that we want to generate.
     for pterms in poly_terms:
         # Every spherical multipole integral is the sum of multiple basic multipole integrals.
         # Depending on the angular momenta of the involved basis functions some integrals

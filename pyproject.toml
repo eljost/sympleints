@@ -1,9 +1,42 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
-build-backend = "setuptools.build_meta"
+build-backend = "mesonpy"
+requires = ["meson-python", "wheel"]
 
-[tool.setuptools_scm]
-write_to = "sympleints/version.py"
+[project]
+name = "sympleints"
+version = "0.0.2"
+description = "Molecular integrals over Gaussian basis functions using sympy."
+readme = "README.md"
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: EUROPEAN UNION PUBLIC LICENCE v. 1.2 (EUPL-1.2)"
+]
+maintainers = [{ name = "Johannes Steinmetzer", email="johannes.steinmetzer@uni-jena.de" }]
+authors = [{ name = "Johannes Steinmetzer", email="johannes.steinmetzer@uni-jena.de" }]
+requires-python = ">= 3.8"
+dependencies = [
+    "black",
+    "colorama",
+    "fprettify",
+    "jinja2",
+    "matplotlib",
+    "networkx",
+    "numpy",
+    "pathos",
+    "psutil",
+    "sympy",
+]
+
+[project.optional-dependencies]
+test = ["pyscf", "pytest", "pytest-cov"]
+
+[project.urls]
+Repository = "https://github.com/eljost/sympleints"
+
+[project.scripts]
+sympleints = "sympleints.main:run_cli"
+sympleints-graph = "sympleints.graphs.main:run"
+
 
 [tool.pyright]
 exclude = ["tests/**"]

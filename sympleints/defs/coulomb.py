@@ -341,14 +341,17 @@ class ThreeCenterTwoElectronBase(Function):
             return recur_vrr(2)
 
 
+"""
 class ThreeCenterTwoElectron(ThreeCenterTwoElectronBase):
     aux_vrr = "cart"
+"""
 
 
 class ThreeCenterTwoElectronSph(ThreeCenterTwoElectronBase):
     aux_vrr = "sph"
 
 
+"""
 class ThreeCenterTwoElectronShell(Function):
     @classmethod
     def eval(cls, La_tot, Lb_tot, Lc_tot, a, b, c, A, B, C):
@@ -359,6 +362,7 @@ class ThreeCenterTwoElectronShell(Function):
         ]
         # print(ThreeCenterTwoElectron.eval.cache_info())
         return exprs, lmns
+"""
 
 
 class ThreeCenterTwoElectronSphShell(Function):

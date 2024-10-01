@@ -8,7 +8,13 @@ from sympleints.helpers import BFKind
 
 
 def get_int_4c2e(L_tots):
-    """Electron repulsion integral."""
+    """Electron repulsion integral.
+
+    The ERIs are defined using chemist's notation.
+
+    (ab|cd) = integral over x1 and x2
+        a(x1) * b(x1) * 1/r_12 * c(x2) * d(x2)
+    """
 
     integral = Integral(
         "int_4c2e", L_tots, kinds=[BFKind.SPH, BFKind.SPH, BFKind.SPH, BFKind.SPH]
@@ -33,7 +39,7 @@ def get_int_4c2e(L_tots):
         center_index=2,
         expr_raw=(
             "QC[pos] * Int(-c) "
-            "- px / (px + qx) * PQ[pos] * Int(-c+n) "
+            "+ px / (px + qx) * PQ[pos] * Int(-c+n) "
             "+ (Lc[pos]-1)/(2*qx) * (Int(-2c) - px / (px + qx) * Int(-2c+n)) "
             "+ (La[pos])/(2 * (px + qx)) * Int(-a-c+n)"
         ),
@@ -58,10 +64,12 @@ def get_int_4c2e(L_tots):
         center_index=3,
         expr_raw="Int(+c-d) + CD[pos] * Int(-d)",
         prefer_index=2,
-        order=(1, 0, 2, 3),
+        order=(0, 1, 3, 2),
     )
-    # Cartesian2Spherical-transformation of C
-    integral.add_transformation(name="c2s_c", center_index=2, c2s=True)
     # Cartesian2Spherical-transformation of D
     integral.add_transformation(name="c2s_d", center_index=3, c2s=True)
+    # Cartesian2Spherical-transformation of C
+    integral.add_transformation(
+        name="c2s_c", center_index=2, c2s=True, order=(0, 1, 2, 3)
+    )
     return integral
