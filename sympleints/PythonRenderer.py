@@ -29,6 +29,7 @@ class PythonRenderer(Renderer):
     _primitive = False
     _drop_dim = True  # TODO: remove this?!
     resort_func_dict = {
+        1: (None, ()),
         2: ("resort_ba_ab", (2, 1)),
         3: ("resort_bac_abc", (2, 1)),
     }
